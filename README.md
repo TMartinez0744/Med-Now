@@ -54,6 +54,6 @@ El sistema integra un chatbot que analiza las consultas del paciente y, en caso 
 
 ## Tecnologías
 
-- Frontend: React + TypeScript  
+- Frontend: React + TypeScript (vite)
 - Backend: Node.js / Express  
 - Base de datos: MongoDB
