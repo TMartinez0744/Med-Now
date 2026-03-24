@@ -10,8 +10,21 @@ function PatientLoginPage() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
+        const dniRegex = /^\d{7,8}$/;
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+
         if (!dni || !password) {
             alert("Completá todos los campos");
+            return;
+        }
+
+        if (!dniRegex.test(dni)) {
+            alert("El DNI debe tener 7 u 8 números");
+            return;
+        }
+
+        if (!passwordRegex.test(password)) {
+            alert("La contraseña debe tener al menos 8 caracteres, una letra y un número");
             return;
         }
 
@@ -29,7 +42,10 @@ function PatientLoginPage() {
                     <input
                         type="text"
                         value={dni}
-                        onChange={(e) => setDni(e.target.value)}
+                        onChange={(e) => {
+                            const value = e.target.value.replace(/\D/g, "");
+                            setDni(value);
+                        }}
                         placeholder="Ingresá tu DNI"
                     />
                 </div>

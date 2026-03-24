@@ -13,14 +13,21 @@ function DoctorRegisterPage() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (
-            !name ||
-            !lastName ||
-            !licenseNumber ||
-            !password ||
-            !confirmPassword
-        ) {
+        const licenseRegex = /^(?:(?:M\.?\s?N\.?)|(?:M\.?\s?P\.?))?\s?\d{4,8}(?:\.\d{3})?$/i;
+        const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+
+        if (!name || !lastName || !licenseNumber || !password || !confirmPassword) {
             alert("Completá todos los campos");
+            return;
+        }
+
+        if (!licenseRegex.test(licenseNumber.trim())) {
+            alert("Ingresá una matrícula válida");
+            return;
+        }
+
+        if (!passwordRegex.test(password)) {
+            alert("La contraseña debe tener al menos 8 caracteres, una letra y un número");
             return;
         }
 
