@@ -40,83 +40,91 @@ function DoctorRegisterPage() {
     };
 
     return (
-        <div>
-            <h1>Registro Médico</h1>
+        <div className="auth-container">
+            <div className="auth-card register-card">
+                <div className="auth-logo">+</div>
 
-            <form onSubmit={handleSubmit}>
-                <div>
-                    <label>Nombre</label>
-                    <br />
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Ingresá tu nombre"
-                    />
-                </div>
+                <h1 className="auth-title">MedNow</h1>
 
-                <br />
+                <form className="auth-form" onSubmit={handleSubmit}>
+                    <div className="auth-field">
+                        <label htmlFor="doctor-name" className="auth-label">Nombre</label>
+                        <input
+                            id="doctor-name"
+                            className="auth-input"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Nombre"
+                        />
+                    </div>
 
-                <div>
-                    <label>Apellido</label>
-                    <br />
-                    <input
-                        type="text"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        placeholder="Ingresá tu apellido"
-                    />
-                </div>
+                    <div className="auth-field">
+                        <label htmlFor="doctor-lastname" className="auth-label">Apellido</label>
+                        <input
+                            id="doctor-lastname"
+                            className="auth-input"
+                            type="text"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            placeholder="Apellido"
+                        />
+                    </div>
 
-                <br />
+                    <div className="auth-field">
+                        <label htmlFor="doctor-license" className="auth-label">Matrícula</label>
+                        <input
+                            id="doctor-license"
+                            className="auth-input"
+                            type="text"
+                            value={licenseNumber}
+                            onChange={(e) => setLicenseNumber(e.target.value)}
+                            placeholder="Matrícula"
+                        />
+                    </div>
 
-                <div>
-                    <label>Matrícula</label>
-                    <br />
-                    <input
-                        type="text"
-                        value={licenseNumber}
-                        onChange={(e) => setLicenseNumber(e.target.value)}
-                        placeholder="Ingresá tu matrícula"
-                    />
-                </div>
+                    <div className="auth-field">
+                        <label htmlFor="doctor-register-password" className="auth-label">Contraseña</label>
+                        <input
+                            id="doctor-register-password"
+                            className="auth-input"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Contraseña"
+                        />
+                    </div>
 
-                <br />
+                    <div className="auth-field">
+                        <label htmlFor="doctor-confirm-password" className="auth-label">
+                            Confirmar contraseña
+                        </label>
+                        <input
+                            id="doctor-confirm-password"
+                            className="auth-input"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Confirmar contraseña"
+                        />
+                    </div>
 
-                <div>
-                    <label>Contraseña</label>
-                    <br />
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Ingresá tu contraseña"
-                    />
-                </div>
+                    <button type="submit" className="auth-button">
+                        Registrarse
+                    </button>
+                </form>
 
-                <br />
+                <p className="auth-register-text">
+                    ¿Ya tienes una cuenta?{" "}
+                    <Link to="/login/doctor" className="auth-register-link">
+                        Inicia sesión
+                    </Link>
+                </p>
 
-                <div>
-                    <label>Confirmar contraseña</label>
-                    <br />
-                    <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Repetí tu contraseña"
-                    />
-                </div>
-
-                <br />
-
-                <button type="submit">Registrarse</button>
-            </form>
-
-            <br />
-
-            <Link to="/login/doctor">
-                <button>Volver al login</button>
-            </Link>
+                <Link to="/login/doctor" className="auth-back-link">
+                    ← Volver
+                </Link>
+            </div>
         </div>
     );
 }
