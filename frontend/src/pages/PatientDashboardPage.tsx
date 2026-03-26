@@ -1,28 +1,29 @@
-import { useNavigate } from "react-router-dom";
+import Navbar from "../components/Navbar";
+import personIcon from "../assets/person.svg";
 
 function PatientDashboardPage() {
-    const navigate = useNavigate();
-
-    const handleLogout = () => {
-        localStorage.removeItem("patientDni");
-        navigate("/");
-    };
-
     return (
-        <div className="auth-container">
-            <div className="auth-card">
-                <div className="auth-logo">+</div>
+        <div className="dashboard-container">
+            <div className="dashboard-header">
+                <div className="avatar">
+                    <img src={personIcon} alt="Usuario" className="avatar-icon" />
+                </div>
 
-                <h1 className="auth-title">MedNow</h1>
-
-                <p className="dashboard-text">
-                    Sesión iniciada como paciente
-                </p>
-
-                <button className="auth-button logout" onClick={handleLogout}>
-                    Cerrar sesión
-                </button>
+                <div>
+                    <h2 className="dashboard-name">Juan Pérez</h2>
+                    <p className="dashboard-sub">DNI: 45306211</p>
+                </div>
             </div>
+
+            <div className="dashboard-card">
+                <h3>Configuración</h3>
+
+                <button className="dashboard-button">Editar Perfil</button>
+                <button className="dashboard-button">Cambiar Contraseña</button>
+                <button className="dashboard-button">Notificaciones</button>
+            </div>
+
+            <Navbar />
         </div>
     );
 }
