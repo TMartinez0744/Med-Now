@@ -1,19 +1,28 @@
-import {Link} from "react-router-dom";
+import { Link } from "react-router-dom";
 
-function HomePage(){
-    return(
-        <div>
-            <h1>MedNow</h1>
-            <p>Elegi tu perfil</p>
+function HomePage() {
+    return (
+        <div className="home-container">
+            <div className="home-card">
+                <div className="home-logo">+</div>
 
-            <Link to="/login/patient">
-                <button>Soy paciente</button>
-            </Link>
+                <h1 className="home-title">MedNow</h1>
+                <p className="home-subtitle">
+                    Por favor, selecciona tu tipo de perfil para continuar
+                </p>
 
-            <Link to="/login/doctor">
-                <button>Soy medico</button>
-            </Link>
+                <div className="home-buttons">
+                    <Link to="/login/patient" className="home-link">
+                        <button className="home-button primary">Soy Paciente</button>
+                    </Link>
+
+                    <Link to="/login/doctor" className="home-link">
+                        <button className="home-button secondary">Soy Médico</button>
+                    </Link>
+                </div>
+            </div>
         </div>
     );
 }
+
 export default HomePage;

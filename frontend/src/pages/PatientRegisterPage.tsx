@@ -40,86 +40,94 @@ function PatientRegisterPage() {
     };
 
     return (
-        <div>
-            <h1>Registro Paciente</h1>
+        <div className="auth-container">
+            <div className="auth-card register-card">
+                <div className="auth-logo">+</div>
 
-            <form onSubmit={handleSubmit}>
-                <div>
-                    <label>Nombre</label>
-                    <br />
-                    <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Ingresá tu nombre"
-                    />
-                </div>
+                <h1 className="auth-title">MedNow</h1>
 
-                <br />
+                <form className="auth-form" onSubmit={handleSubmit}>
+                    <div className="auth-field">
+                        <label htmlFor="patient-name" className="auth-label">Nombre</label>
+                        <input
+                            id="patient-name"
+                            className="auth-input"
+                            type="text"
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Nombre"
+                        />
+                    </div>
 
-                <div>
-                    <label>Apellido</label>
-                    <br />
-                    <input
-                        type="text"
-                        value={lastName}
-                        onChange={(e) => setLastName(e.target.value)}
-                        placeholder="Ingresá tu apellido"
-                    />
-                </div>
+                    <div className="auth-field">
+                        <label htmlFor="patient-lastname" className="auth-label">Apellido</label>
+                        <input
+                            id="patient-lastname"
+                            className="auth-input"
+                            type="text"
+                            value={lastName}
+                            onChange={(e) => setLastName(e.target.value)}
+                            placeholder="Apellido"
+                        />
+                    </div>
 
-                <br />
+                    <div className="auth-field">
+                        <label htmlFor="patient-register-dni" className="auth-label">DNI</label>
+                        <input
+                            id="patient-register-dni"
+                            className="auth-input"
+                            type="text"
+                            value={dni}
+                            onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, "");
+                                setDni(value);
+                            }}
+                            placeholder="DNI"
+                        />
+                    </div>
 
-                <div>
-                    <label>DNI</label>
-                    <br />
-                    <input
-                        type="text"
-                        value={dni}
-                        onChange={(e) => {
-                            const value = e.target.value.replace(/\D/g, "");
-                            setDni(value);
-                        }}
-                        placeholder="Ingresá tu DNI"
-                    />
-                </div>
+                    <div className="auth-field">
+                        <label htmlFor="patient-register-password" className="auth-label">Contraseña</label>
+                        <input
+                            id="patient-register-password"
+                            className="auth-input"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Contraseña"
+                        />
+                    </div>
 
-                <br />
+                    <div className="auth-field">
+                        <label htmlFor="patient-confirm-password" className="auth-label">
+                            Confirmar contraseña
+                        </label>
+                        <input
+                            id="patient-confirm-password"
+                            className="auth-input"
+                            type="password"
+                            value={confirmPassword}
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                            placeholder="Confirmar contraseña"
+                        />
+                    </div>
 
-                <div>
-                    <label>Contraseña</label>
-                    <br />
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Ingresá tu contraseña"
-                    />
-                </div>
+                    <button type="submit" className="auth-button">
+                        Registrarse
+                    </button>
+                </form>
 
-                <br />
+                <p className="auth-register-text">
+                    ¿Ya tienes una cuenta?{" "}
+                    <Link to="/login/patient" className="auth-register-link">
+                        Inicia sesión
+                    </Link>
+                </p>
 
-                <div>
-                    <label>Confirmar contraseña</label>
-                    <br />
-                    <input
-                        type="password"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Repetí tu contraseña"
-                    />
-                </div>
-
-                <br />
-
-                <button type="submit">Registrarse</button>
-            </form>
-
-            <br />
-
-            <Link to="/login/patient">
-                <button>Volver al login</button>
-            </Link>
+                <Link to="/login/patient" className="auth-back-link">
+                    ← Volver
+                </Link>
+            </div>
         </div>
     );
 }

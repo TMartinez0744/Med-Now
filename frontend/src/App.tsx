@@ -1,3 +1,4 @@
+import "./App.css";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import HomePage from "./pages/HomePage";
 import PatientLoginPage from "./pages/PatientLoginPage";
@@ -6,6 +7,7 @@ import PatientRegisterPage from "./pages/PatientRegisterPage";
 import DoctorRegisterPage from "./pages/DoctorRegisterPage";
 import PatientDashboardPage from "./pages/PatientDashboardPage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
+
 
 function App() {
     return (

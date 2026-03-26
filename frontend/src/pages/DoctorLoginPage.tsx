@@ -32,51 +32,57 @@ function DoctorLoginPage() {
     };
 
     return (
-        <div>
-            <h1>Login Médico</h1>
+        <div className="auth-container">
+            <div className="auth-card">
+                <div className="auth-logo">+</div>
 
-            <form onSubmit={handleSubmit}>
-                <div>
-                    <label>Matrícula</label>
-                    <br />
-                    <input
-                        type="text"
-                        value={licenseNumber}
-                        onChange={(e) => setLicenseNumber(e.target.value)}
-                        placeholder="Ingresá tu matrícula"
-                    />
-                </div>
+                <h1 className="auth-title">MedNow</h1>
 
-                <br />
+                <form className="auth-form" onSubmit={handleSubmit}>
+                    <div className="auth-field">
+                        <label htmlFor="doctor-license" className="auth-label">
+                            Matrícula
+                        </label>
+                        <input
+                            id="doctor-license"
+                            className="auth-input"
+                            type="text"
+                            value={licenseNumber}
+                            onChange={(e) => setLicenseNumber(e.target.value)}
+                            placeholder="Matrícula"
+                        />
+                    </div>
 
-                <div>
-                    <label>Contraseña</label>
-                    <br />
-                    <input
-                        type="password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Ingresá tu contraseña"
-                    />
-                </div>
+                    <div className="auth-field">
+                        <label htmlFor="doctor-password" className="auth-label">
+                            Contraseña
+                        </label>
+                        <input
+                            id="doctor-password"
+                            className="auth-input"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Contraseña"
+                        />
+                    </div>
 
-                <br />
+                    <button type="submit" className="auth-button">
+                        Iniciar Sesión
+                    </button>
+                </form>
 
-                <button type="submit">Iniciar sesión</button>
-            </form>
+                <p className="auth-register-text">
+                    ¿No tienes una cuenta?{" "}
+                    <Link to="/register/doctor" className="auth-register-link">
+                        Regístrate
+                    </Link>
+                </p>
 
-            <br />
-
-            <Link to="/register/doctor">
-                <button>Ir a registro</button>
-            </Link>
-
-            <br />
-            <br />
-
-            <Link to="/">
-                <button>Volver</button>
-            </Link>
+                <Link to="/" className="auth-back-link">
+                    ← Volver
+                </Link>
+            </div>
         </div>
     );
 }
