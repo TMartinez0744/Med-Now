@@ -1,7 +1,15 @@
 import Navbar from "../components/Navbar";
+import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
 
 function PatientDashboardPage() {
+
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        navigate("/");
+    };
+
     return (
         <div className="dashboard-container">
             <div className="dashboard-header">
@@ -11,7 +19,7 @@ function PatientDashboardPage() {
 
                 <div>
                     <h2 className="dashboard-name">Juan Pérez</h2>
-                    <p className="dashboard-sub">DNI: 45306211</p>
+                    <p className="dashboard-sub">DNI: 45611865</p>
                 </div>
             </div>
 
@@ -21,9 +29,12 @@ function PatientDashboardPage() {
                 <button className="dashboard-button">Editar Perfil</button>
                 <button className="dashboard-button">Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
+                <button className="dashboard-button logout" onClick={handleLogout}>
+                    Cerrar sesión
+                </button>
             </div>
 
-            <Navbar />
+            <Navbar role = "patient" />
         </div>
     );
 }
