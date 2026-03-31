@@ -1,3 +1,5 @@
+/* Home */
+
 .home-container {
   min-height: 100vh;
   display: flex;
@@ -27,7 +29,6 @@
   align-items: center;
   justify-content: center;
   font-size: 36px;
-  font-weight: 300;
 }
 
 .home-title {
@@ -40,7 +41,6 @@
 .home-subtitle {
   margin: 14px 0 24px;
   font-size: 16px;
-  line-height: 1.5;
   color: #6b7280;
 }
 
@@ -48,10 +48,6 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-}
-
-.home-link {
-  text-decoration: none;
 }
 
 .home-button {
@@ -76,7 +72,6 @@
 
 .home-button.secondary {
   background-color: white;
-  color: #111827;
   border: 2px solid #d1d5db;
 }
 
@@ -84,41 +79,13 @@
   background-color: #f9fafb;
 }
 
-/* home mobile */
-@media (max-width: 480px) {
-  .home-card {
-    padding: 28px 18px;
-  }
-
-  .home-logo {
-    width: 64px;
-    height: 64px;
-    font-size: 32px;
-  }
-
-  .home-title {
-    font-size: 30px;
-  }
-
-  .home-subtitle {
-    font-size: 15px;
-  }
-
-  .home-button {
-    font-size: 15px;
-    padding: 13px;
-  }
-}
-
-/* auth */
+/* Auth */
 
 .auth-container {
   min-height: 100vh;
-  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 20px;
 }
 
 .auth-card {
@@ -128,77 +95,33 @@
   padding: 32px 22px;
   border-radius: 20px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-  text-align: center;
-}
-
-.auth-logo {
-  width: 70px;
-  height: 70px;
-  margin: 0 auto 18px;
-  border-radius: 50%;
-  background-color: #2f5cf5;
-  color: white;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 36px;
-  font-weight: 300;
 }
 
 .auth-title {
-  margin: 0 0 28px;
-  font-size: 34px;
+  font-size: 30px;
   font-weight: 700;
-  color: #111827;
+  margin-bottom: 24px;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  text-align: left;
-}
-
-.auth-field {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.auth-label {
-  font-size: 15px;
-  font-weight: 600;
-  color: #111827;
+  gap: 16px;
 }
 
 .auth-input {
-  width: 100%;
-  padding: 14px 16px;
-  border: none;
+  padding: 14px;
   border-radius: 12px;
+  border: none;
   background-color: #f3f4f6;
-  font-size: 16px;
-  color: #111827;
-  outline: none;
-}
-
-.auth-input::placeholder {
-  color: #9ca3af;
-}
-
-.auth-input:focus {
-  outline: 2px solid #2f5cf5;
 }
 
 .auth-button {
-  width: 100%;
-  margin-top: 10px;
   padding: 14px;
-  border: none;
   border-radius: 14px;
   background-color: #2f5cf5;
   color: white;
-  font-size: 16px;
+  border: none;
   font-weight: 600;
   cursor: pointer;
   transition: 0.2s ease;
@@ -208,65 +131,7 @@
   background-color: #2449c9;
 }
 
-.auth-register-text {
-  margin: 28px 0 18px;
-  font-size: 15px;
-  color: #4b5563;
-}
-
-.auth-register-link {
-  color: #2f5cf5;
-  text-decoration: none;
-  font-weight: 600;
-}
-
-.auth-register-link:hover {
-  text-decoration: underline;
-}
-
-.auth-back-link {
-  display: inline-block;
-  text-decoration: none;
-  color: #6b7280;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.auth-back-link:hover {
-  color: #374151;
-}
-
-/* register */
-.register-card {
-  max-width: 380px;
-}
-
-/* auth mobile */
-@media (max-width: 480px) {
-  .auth-card {
-    padding: 28px 18px;
-  }
-
-  .auth-logo {
-    width: 64px;
-    height: 64px;
-    font-size: 32px;
-  }
-
-  .auth-title {
-    font-size: 30px;
-  }
-
-  .auth-input {
-    font-size: 15px;
-  }
-
-  .auth-button {
-    font-size: 15px;
-  }
-}
-
-/* dashboard */
+/* Dashboard*/
 
 .dashboard-container {
   min-height: 100vh;
@@ -292,7 +157,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+}
+
+.avatar-icon {
+  width: 28px;
+  height: 28px;
 }
 
 .dashboard-name {
@@ -329,8 +198,8 @@
   border: 1px solid #e5e7eb;
   background-color: white;
   cursor: pointer;
-  font-size: 15px;
   text-align: left;
+  font-size: 15px;
   transition: 0.2s ease;
 }
 
@@ -338,16 +207,185 @@
   background-color: #f9fafb;
 }
 
-.dashboard-button.logout {
-  color: #dc2626;
-  border: 1px solid #fecaca;
+/* Perfil del medico*/
+
+.professional-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.dashboard-button.logout:hover {
-  background-color: #fef2f2;
+.profile-block {
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  padding: 20px;
+  background: #ffffff;
 }
 
-/* navbar */
+.profile-block-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.profile-block-header h3 {
+  margin: 0;
+  font-size: 18px;
+  color: #111827;
+}
+
+.section-icon {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.selected-list {
+  margin-bottom: 18px;
+}
+
+.chips-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.info-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #e8f0ff;
+  color: #2f5cf5;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.vertical-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f9fafb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  color: #111827;
+}
+
+.info-row-icon {
+  width: 18px;
+  height: 18px;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.empty-text {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.profile-section {
+  margin-top: 20px;
+}
+
+.profile-section-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.options-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+.option-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid #d9dce3;
+  border-radius: 14px;
+  background: #f8faff;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.option-card:hover {
+  border-color: #4f6df5;
+  background: #eef3ff;
+}
+
+.option-card.selected {
+  border-color: #4f6df5;
+  background: #e6edff;
+  box-shadow: 0 0 0 2px rgba(79, 109, 245, 0.15);
+}
+
+.option-card input {
+  display: none;
+}
+
+.custom-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #94a3b8;
+  border-radius: 5px;
+  background: white;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.option-card.selected .custom-checkbox {
+  background: #4f6df5;
+  border-color: #4f6df5;
+}
+
+
+.option-card.selected .option-text {
+  color: #2f5cf5;
+  font-weight: 600;
+}
+
+.option-card.selected .custom-checkbox::after {
+  content: "✓";
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.option-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.save-button {
+  margin-top: 20px;
+  background: linear-gradient(90deg, #3b5bdb, #4f6df5);
+  color: white;
+  border: none;
+  font-weight: 600;
+}
+
+.save-button:hover {
+  opacity: 0.96;
+}
+
+/* Navbar*/
+
 .navbar {
   position: fixed;
   bottom: 0;
@@ -357,30 +395,42 @@
   border-top: 1px solid #e5e7eb;
   display: flex;
   justify-content: space-around;
+  align-items: center;
   padding: 12px 0;
+  z-index: 100;
 }
 
 .nav-item {
-  font-size: 13px;
+  text-decoration: none;
   color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 10px;
+  border-radius: 10px;
+  transition: 0.2s ease;
 }
 
 .nav-item.active {
   color: #2f5cf5;
-  font-weight: 600;
+  font-weight: 700;
+  background-color: #eef3ff;
 }
 
-/* dashboard mobile */
+.nav-item.disabled {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Mobile */
+
 @media (max-width: 480px) {
-  .dashboard-header {
-    padding: 20px 16px;
-    gap: 14px;
+  .dashboard-card {
+    margin: 16px;
   }
 
-  .avatar {
-    width: 54px;
-    height: 54px;
-    font-size: 24px;
+  .dashboard-header {
+    padding: 20px 16px;
   }
 
   .dashboard-name {
@@ -391,24 +441,20 @@
     font-size: 13px;
   }
 
-  .dashboard-card {
-    margin: 16px;
+  .options-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-block {
     padding: 18px;
+  }
+
+  .info-chip {
+    font-size: 14px;
+    padding: 7px 14px;
   }
 
   .dashboard-button {
     font-size: 14px;
-    padding: 13px;
   }
-
-  .nav-item {
-    font-size: 12px;
-  }
-
-  .avatar-icon {
-    width: 28px;
-    height: 28px;
-    color: #2f5cf5;
-  }
-
 }

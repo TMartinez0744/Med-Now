@@ -1,5 +1,8 @@
 import Navbar from "../components/Navbar";
 import personIcon from "../assets/person.svg";
+import biotechIcon from "../assets/biotech.svg";
+import locationIcon from "../assets/location_on.svg";
+
 import { useState } from "react";
 
 const SPECIALTIES = [
@@ -35,7 +38,6 @@ function DoctorDashboardPage() {
 
     return (
         <div className="dashboard-container">
-
             <div className="dashboard-header">
                 <div className="avatar">
                     <img src={personIcon} alt="Usuario" className="avatar-icon" />
@@ -54,43 +56,93 @@ function DoctorDashboardPage() {
                 <button className="dashboard-button">Notificaciones</button>
             </div>
 
-            {/* NUEVA CARD */}
-            <div className="dashboard-card">
-                <h3>Perfil profesional</h3>
+            <div className="dashboard-card professional-card">
+                <div className="profile-block">
+                    <div className="profile-block-header">
+                        <img src={biotechIcon} alt="Especialidades" className="section-icon" />
+                        <h3>Especialidades</h3>
+                    </div>
 
-                <div style={{ marginTop: "12px" }}>
-                    <h4>Especialidades</h4>
-                    {SPECIALTIES.map((spec) => (
-                        <label key={spec} style={{ display: "block" }}>
-                            <input
-                                type="checkbox"
-                                checked={specialties.includes(spec)}
-                                onChange={() =>
-                                    toggleSelection(spec, specialties, setSpecialties)
-                                }
-                            />
-                            {spec}
-                        </label>
-                    ))}
+                    <div className="selected-list chips-list">
+                        {specialties.length > 0 ? (
+                            specialties.map((spec) => (
+                                <span key={spec} className="info-chip">
+                        {spec}
+                    </span>
+                            ))
+                        ) : (
+                            <p className="empty-text">Todavía no agregaste especialidades.</p>
+                        )}
+                    </div>
+
+                    <div className="options-grid">
+                        {SPECIALTIES.map((spec) => (
+                            <label
+                                key={spec}
+                                className={`option-card ${
+                                    specialties.includes(spec) ? "selected" : ""
+                                }`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={specialties.includes(spec)}
+                                    onChange={() =>
+                                        toggleSelection(spec, specialties, setSpecialties)
+                                    }
+                                />
+                                <span className="custom-checkbox"></span>
+                                <span className="option-text">{spec}</span>
+                            </label>
+                        ))}
+                    </div>
                 </div>
 
-                <div style={{ marginTop: "16px" }}>
-                    <h4>Hospitales / sedes</h4>
-                    {HOSPITALS.map((hospital) => (
-                        <label key={hospital} style={{ display: "block" }}>
-                            <input
-                                type="checkbox"
-                                checked={hospitals.includes(hospital)}
-                                onChange={() =>
-                                    toggleSelection(hospital, hospitals, setHospitals)
-                                }
-                            />
-                            {hospital}
-                        </label>
-                    ))}
+                <div className="profile-block">
+                    <div className="profile-block-header">
+                        <img src={locationIcon} alt="Sedes" className="section-icon" />
+                        <h3>Sedes de atención</h3>
+                    </div>
+
+                    <div className="selected-list vertical-list">
+                        {hospitals.length > 0 ? (
+                            hospitals.map((hospital) => (
+                                <div key={hospital} className="info-row">
+                                    <img
+                                        src={locationIcon}
+                                        alt=""
+                                        className="info-row-icon"
+                                    />
+                                    <span>{hospital}</span>
+                                </div>
+                            ))
+                        ) : (
+                            <p className="empty-text">Todavía no agregaste sedes de atención.</p>
+                        )}
+                    </div>
+
+                    <div className="options-grid">
+                        {HOSPITALS.map((hospital) => (
+                            <label
+                                key={hospital}
+                                className={`option-card ${
+                                    hospitals.includes(hospital) ? "selected" : ""
+                                }`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={hospitals.includes(hospital)}
+                                    onChange={() =>
+                                        toggleSelection(hospital, hospitals, setHospitals)
+                                    }
+                                />
+                                <span className="custom-checkbox"></span>
+                                <span className="option-text">{hospital}</span>
+                            </label>
+                        ))}
+                    </div>
                 </div>
 
-                <button className="dashboard-button" style={{ marginTop: "16px" }}>
+                <button className="dashboard-button save-button">
                     Guardar cambios
                 </button>
             </div>
