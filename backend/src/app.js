@@ -13,7 +13,11 @@ app.use(express.json());
 app.use('/api', apiRoutes);
 
 app.get('/', (req, res) => {
+<<<<<<< Updated upstream
     res.send('MedNow API funcionando con Supabase 🚀');
+=======
+    res.send('MedNow API funcionando con Prisma 🚀');
+>>>>>>> Stashed changes
 });
 
 const PORT = process.env.PORT || 3000;
