@@ -81,11 +81,15 @@
 
 /* Auth */
 
+/* Auth */
+
 .auth-container {
   min-height: 100vh;
+  width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 20px;
 }
 
 .auth-card {
@@ -95,33 +99,78 @@
   padding: 32px 22px;
   border-radius: 20px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  text-align: center;
+}
+
+.auth-logo {
+  width: 70px;
+  height: 70px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background-color: #2f5cf5;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  font-weight: 300;
 }
 
 .auth-title {
-  font-size: 30px;
+  margin: 0 0 28px;
+  font-size: 34px;
   font-weight: 700;
-  margin-bottom: 24px;
+  color: #111827;
 }
 
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+  text-align: left;
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #111827;
 }
 
 .auth-input {
-  padding: 14px;
-  border-radius: 12px;
+  width: 100%;
+  padding: 14px 16px;
   border: none;
+  border-radius: 12px;
   background-color: #f3f4f6;
+  font-size: 16px;
+  color: #111827;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.auth-input::placeholder {
+  color: #9ca3af;
+}
+
+.auth-input:focus {
+  outline: 2px solid #2f5cf5;
 }
 
 .auth-button {
+  width: 100%;
+  margin-top: 10px;
   padding: 14px;
+  border: none;
   border-radius: 14px;
   background-color: #2f5cf5;
   color: white;
-  border: none;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: 0.2s ease;
@@ -129,6 +178,39 @@
 
 .auth-button:hover {
   background-color: #2449c9;
+}
+
+.auth-register-text {
+  margin: 28px 0 18px;
+  font-size: 15px;
+  color: #4b5563;
+}
+
+.auth-register-link {
+  color: #2f5cf5;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.auth-register-link:hover {
+  text-decoration: underline;
+}
+
+.auth-back-link {
+  display: inline-block;
+  text-decoration: none;
+  color: #6b7280;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.auth-back-link:hover {
+  color: #374151;
+}
+
+/* register */
+.register-card {
+  max-width: 380px;
 }
 
 /* Dashboard*/
@@ -349,7 +431,6 @@
   border-color: #4f6df5;
 }
 
-
 .option-card.selected .option-text {
   color: #2f5cf5;
   font-weight: 600;
@@ -382,6 +463,181 @@
 
 .save-button:hover {
   opacity: 0.96;
+}
+
+/* Horarios de medico*/
+
+.schedule-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.schedule-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.schedule-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.schedule-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.schedule-save-button {
+  border: none;
+  background: #16a34a;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.schedule-save-button:hover {
+  background: #15803d;
+}
+
+.schedule-secondary-button {
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #111827;
+  padding: 10px 16px;
+  border-radius: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.schedule-secondary-button:hover {
+  background: #f9fafb;
+}
+
+.schedule-days {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.schedule-day-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px 18px;
+  background: #ffffff;
+}
+
+.schedule-day-disabled {
+  background: #f9fafb;
+}
+
+.schedule-day-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.schedule-day-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.schedule-day-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.schedule-unavailable {
+  font-size: 14px;
+  color: #9ca3af;
+}
+
+.schedule-time-row,
+.schedule-time-display {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  margin-left: 50px;
+}
+
+.schedule-time-label {
+  min-width: 64px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.schedule-time-value {
+  font-size: 15px;
+  color: #1f2937;
+}
+
+.schedule-time-input {
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #f9fafb;
+  font-size: 15px;
+  color: #111827;
+}
+
+.schedule-time-separator {
+  color: #6b7280;
+}
+
+/* switch */
+
+.schedule-switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+}
+
+.schedule-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.schedule-slider {
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  background-color: #d1d5db;
+  border-radius: 999px;
+  transition: 0.2s ease;
+}
+
+.schedule-slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 2px;
+  top: 2px;
+  background-color: white;
+  border-radius: 50%;
+  transition: 0.2s ease;
+}
+
+.schedule-switch input:checked + .schedule-slider {
+  background-color: #111827;
+}
+
+.schedule-switch input:checked + .schedule-slider::before {
+  transform: translateX(16px);
 }
 
 /* Navbar*/
@@ -457,4 +713,43 @@
   .dashboard-button {
     font-size: 14px;
   }
+
+  .schedule-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .schedule-actions {
+    width: 100%;
+  }
+
+  .schedule-save-button,
+  .schedule-secondary-button {
+    flex: 1;
+    text-align: center;
+  }
+
+  .schedule-time-row,
+  .schedule-time-display {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .schedule-time-label {
+    width: 100%;
+    min-width: unset;
+  }
+
+
+}
+/* Logout */
+
+.dashboard-card .dashboard-button.logout {
+  background-color: #ef4444;
+  color: white;
+  border: none;
+}
+
+.dashboard-card .dashboard-button.logout:hover {
+  background-color: #dc2626;
 }
