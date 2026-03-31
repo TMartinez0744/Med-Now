@@ -1,0 +1,29 @@
+import { NavLink } from "react-router-dom";
+
+type NavbarProps = {
+    role: "doctor" | "patient";
+};
+
+function Navbar({ role }: NavbarProps) {
+    const profilePath =
+        role === "doctor" ? "/doctor/dashboard" : "/patient/dashboard";
+
+    return (
+        <nav className="navbar">
+            <span className="nav-item disabled">Turnos</span>
+            <span className="nav-item disabled">Mapa</span>
+            <span className="nav-item disabled">Chat</span>
+
+            <NavLink
+                to={profilePath}
+                className={({ isActive }) =>
+                    `nav-item ${isActive ? "active" : ""}`
+                }
+            >
+                Perfil
+            </NavLink>
+        </nav>
+    );
+}
+
+export default Navbar;
