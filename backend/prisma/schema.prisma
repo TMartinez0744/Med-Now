@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+}
+
+model profiles {
+  id              String      @id @db.Uuid
+  nombre_apellido String
+  dni             String      @unique
+  tipo_usuario    String
+  created_at      DateTime?   @default(now()) @db.Timestamptz(6)
+  
+  // Relaciones
+  medico          medicos?
+  paciente        pacientes?
+}
+
+model medicos {
+  id             String      @id @db.Uuid
+  especialidades String[]
+  sedes          String[]
+  recibir_turnos Boolean?    @default(true)
+  
+  profile        profiles    @relation(fields: [id], references: [id], onDelete: Cascade)
+  turnos         turnos[]
+}
+
+model pacientes {
+  id           String      @id @db.Uuid
+  obra_social  String?
+  ficha_medica Json?
+  
+  profile      profiles    @relation(fields: [id], references: [id], onDelete: Cascade)
+  turnos       turnos[]
+}
+
+model turnos {
+  id           Int         @id @default(autoincrement())
+  paciente_id  String      @db.Uuid
+  medico_id    String      @db.Uuid
+  fecha_hora   DateTime    @db.Timestamptz(6)
+  estado       String
+  notas_triage String?
+
+  paciente     pacientes   @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
+  medico       medicos     @relation(fields: [medico_id], references: [id], onDelete: Cascade)
+}
+
+model centros_emergencia {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  direccion   String
+  latitud     Float?
+  longitud    Float?
+  abierto_24h Boolean? @default(true)
+}
