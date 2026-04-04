@@ -7,10 +7,10 @@ function DoctorLoginPage() {
     const [licenseNumber, setLicenseNumber] = useState("");
     const [password, setPassword] = useState("");
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const licenseRegex = /^(?:(?:M\.?\s?N\.?)|(?:M\.?\s?P\.?))?\s?\d{4,8}(?:\.\d{3})?$/i;
+        const licenseRegex = /^\d{7,8}$/;
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
         if (!licenseNumber || !password) {
@@ -18,8 +18,8 @@ function DoctorLoginPage() {
             return;
         }
 
-        if (!licenseRegex.test(licenseNumber.trim())) {
-            alert("Ingresá una matrícula válida");
+        if (!licenseRegex.test(licenseNumber)) {
+            alert("La matrícula debe tener 7 u 8 números");
             return;
         }
 
@@ -28,7 +28,44 @@ function DoctorLoginPage() {
             return;
         }
 
-        navigate("/doctor/dashboard");
+        try {
+            const response = await fetch("http://localhost:3000/api/auth/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    dni: licenseNumber,
+                    password,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                alert("Error: " + result.message);
+                return;
+            }
+
+            localStorage.setItem("user", licenseNumber);
+            const existingData = JSON.parse(localStorage.getItem("doctorData") || "{}");
+
+            if (!existingData.licenseNumber) {
+                localStorage.setItem(
+                    "doctorData",
+                    JSON.stringify({
+                        licenseNumber,
+                    })
+                );
+            }
+
+            alert("Login exitoso");
+
+            navigate("/doctor/dashboard");
+        } catch (error) {
+            console.error(error);
+            alert("Error al conectar con el backend");
+        }
     };
 
     return (
@@ -40,25 +77,22 @@ function DoctorLoginPage() {
 
                 <form className="auth-form" onSubmit={handleSubmit}>
                     <div className="auth-field">
-                        <label htmlFor="doctor-license" className="auth-label">
-                            Matrícula
-                        </label>
+                        <label className="auth-label">Matrícula</label>
                         <input
-                            id="doctor-license"
                             className="auth-input"
                             type="text"
                             value={licenseNumber}
-                            onChange={(e) => setLicenseNumber(e.target.value)}
+                            onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, "");
+                                setLicenseNumber(value);
+                            }}
                             placeholder="Matrícula"
                         />
                     </div>
 
                     <div className="auth-field">
-                        <label htmlFor="doctor-password" className="auth-label">
-                            Contraseña
-                        </label>
+                        <label className="auth-label">Contraseña</label>
                         <input
-                            id="doctor-password"
                             className="auth-input"
                             type="password"
                             value={password}
