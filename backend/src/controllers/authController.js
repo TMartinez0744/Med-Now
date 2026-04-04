@@ -1,19 +1,19 @@
 let usuarios = [];
 
 const register = (req, res) => {
-    const { email, password } = req.body;
+    const { dni, password } = req.body;
 
-    console.log("Datos recibidos en register:", email, password);
+    console.log("Datos recibidos en register:", dni, password);
 
-    if (!email || !password) {
+    if (!dni || !password) {
         return res.status(400).json({
-            message: "Email y password son obligatorios",
+            message: "DNI y password son obligatorios",
         });
     }
 
-    if (!email.includes("@")) {
+    if (!/^\d{7,8}$/.test(dni)) {
         return res.status(400).json({
-            message: "Email inválido",
+            message: "DNI inválido",
         });
     }
 
@@ -23,7 +23,7 @@ const register = (req, res) => {
         });
     }
 
-    const usuarioExistente = usuarios.find((u) => u.email === email);
+    const usuarioExistente = usuarios.find((u) => u.dni === dni);
 
     if (usuarioExistente) {
         return res.status(400).json({
@@ -31,28 +31,28 @@ const register = (req, res) => {
         });
     }
 
-    usuarios.push({ email, password });
+    usuarios.push({ dni, password });
 
     console.log("Usuarios:", usuarios);
 
     return res.status(201).json({
-        message: "Registro funcionando correctamente",
+        message: "Registro exitoso",
         user: {
-            email: email,
+            dni,
         },
     });
 };
 
 const login = (req, res) => {
-    const { email, password } = req.body;
+    const { dni, password } = req.body;
 
-    if (!email || !password) {
+    if (!dni || !password) {
         return res.status(400).json({
-            message: "Email y password son obligatorios",
+            message: "DNI y password son obligatorios",
         });
     }
 
-    const usuario = usuarios.find((u) => u.email === email);
+    const usuario = usuarios.find((u) => u.dni === dni);
 
     if (!usuario || usuario.password !== password) {
         return res.status(401).json({
