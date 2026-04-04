@@ -1,26 +1,27 @@
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
 
-const apiRoutes = require('./routes/api');
+const authRoutes = require("./routes/authRoutes");
+const apiRoutes = require("./routes/api");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-// API Routes
-app.use('/api', apiRoutes);
-
-app.get('/', (req, res) => {
-<<<<<<< Updated upstream
-    res.send('MedNow API funcionando con Supabase 🚀');
-=======
-    res.send('MedNow API funcionando con Prisma 🚀');
->>>>>>> Stashed changes
+// Ruta base
+app.get("/", (req, res) => {
+    res.send("Backend funcionando 🚀");
 });
 
+// Rutas
+app.use("/api/auth", authRoutes);
+app.use("/api", apiRoutes);
+
+// Puerto
 const PORT = process.env.PORT || 3000;
+
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
