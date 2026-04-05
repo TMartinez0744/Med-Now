@@ -42,7 +42,6 @@ type DaySchedule = {
 function DoctorDashboardPage() {
     const [specialties, setSpecialties] = useState<string[]>([]);
     const [hospitals, setHospitals] = useState<string[]>([]);
-
     const [isEditingSchedule, setIsEditingSchedule] = useState(false);
 
     const [schedule, setSchedule] = useState<Record<string, DaySchedule>>(
@@ -57,6 +56,30 @@ function DoctorDashboardPage() {
             ])
         )
     );
+
+    const navigate = useNavigate();
+
+    // 🔥 DATOS DEL DOCTOR (localStorage)
+    const doctorData = JSON.parse(localStorage.getItem("doctorData") || "{}");
+
+    // 🔥 FUNCIÓN CAPITALIZE (ANTES DE USARLA)
+    const capitalize = (text: string) =>
+        text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+
+    const doctorName =
+        doctorData.name && doctorData.lastName
+            ? `Dr. ${capitalize(doctorData.name)} ${capitalize(doctorData.lastName)}`
+            : "Dr. Usuario";
+
+    const doctorLicense = doctorData.licenseNumber
+        ? `Matrícula: ${doctorData.licenseNumber}`
+        : "Matrícula: No disponible";
+
+    const handleLogout = () => {
+        localStorage.removeItem("user");
+        localStorage.removeItem("doctorData");
+        navigate("/");
+    };
 
     const toggleSelection = (
         value: string,
@@ -94,14 +117,6 @@ function DoctorDashboardPage() {
         }));
     };
 
-    const navigate = useNavigate();
-
-    const handleLogout = () => {
-        // por ahora mock
-        localStorage.removeItem("user"); // opcional
-        navigate("/");
-    };
-
     return (
         <div className="dashboard-container">
             <div className="dashboard-header">
@@ -109,8 +124,8 @@ function DoctorDashboardPage() {
                     <img src={personIcon} alt="Usuario" className="avatar-icon" />
                 </div>
                 <div>
-                    <h2 className="dashboard-name">Dr. Juan Pérez</h2>
-                    <p className="dashboard-sub">Matrícula: MN 12345</p>
+                    <h2 className="dashboard-name">{doctorName}</h2>
+                    <p className="dashboard-sub">{doctorLicense}</p>
                 </div>
             </div>
 
@@ -125,7 +140,6 @@ function DoctorDashboardPage() {
                 </button>
             </div>
 
-            {/* especialidades y sedes de atencion */}
             <div className="dashboard-card professional-card">
                 <div className="profile-block">
                     <div className="profile-block-header">
@@ -177,11 +191,7 @@ function DoctorDashboardPage() {
                         {hospitals.length > 0 ? (
                             hospitals.map((hospital) => (
                                 <div key={hospital} className="info-row">
-                                    <img
-                                        src={locationIcon}
-                                        alt=""
-                                        className="info-row-icon"
-                                    />
+                                    <img src={locationIcon} alt="" className="info-row-icon" />
                                     <span>{hospital}</span>
                                 </div>
                             ))
@@ -217,7 +227,6 @@ function DoctorDashboardPage() {
                 </button>
             </div>
 
-            {/* horarios de atencion */}
             <div className="dashboard-card schedule-card">
                 <div className="schedule-header">
                     <div className="schedule-title-group">
@@ -340,9 +349,6 @@ function DoctorDashboardPage() {
                     })}
                 </div>
             </div>
-
-
-
 
             <Navbar role="doctor" />
         </div>

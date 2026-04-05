@@ -10,7 +10,7 @@ function DoctorRegisterPage() {
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const licenseRegex = /^(?:(?:M\.?\s?N\.?)|(?:M\.?\s?P\.?))?\s?\d{4,8}(?:\.\d{3})?$/i;
@@ -36,7 +36,46 @@ function DoctorRegisterPage() {
             return;
         }
 
-        navigate("/doctor/dashboard");
+        try {
+            const response = await fetch("http://localhost:3000/api/auth/register", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    dni: licenseNumber,
+                    password,
+                    name,
+                    lastName,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                alert("Error: " + result.message);
+                return;
+            }
+
+            // 🔥 guardamos datos para el dashboard
+            localStorage.setItem(
+                "doctorData",
+                JSON.stringify({
+                    name,
+                    lastName,
+                    licenseNumber,
+                })
+            );
+
+            localStorage.setItem("user", licenseNumber);
+
+            alert("Registro exitoso");
+            navigate("/login/doctor");
+
+        } catch (error) {
+            console.error(error);
+            alert("Error al conectar con el backend");
+        }
     };
 
     return (
