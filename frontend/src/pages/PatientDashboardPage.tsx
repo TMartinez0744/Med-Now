@@ -43,6 +43,17 @@ const OBRAS_SOCIALES = [
 //comp ppal
 function PatientDashboardPage() {
     const navigate = useNavigate();
+    const patientData = JSON.parse(localStorage.getItem("patientData") || "{}");
+
+    const capitalize = (text: string): string => {
+        if (!text) return "";
+        return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+    };
+
+    const patientName =
+        patientData.name && patientData.lastName
+            ? `${capitalize(patientData.name)} ${capitalize(patientData.lastName)}`
+            : "Usuario";
 
     // estado obra social
     const [obraSocial, setObraSocial] = useState("OSDE");
@@ -111,8 +122,10 @@ function PatientDashboardPage() {
                     <img src={personIcon} alt="Usuario" className="avatar-icon" />
                 </div>
                 <div>
-                    <h2 className="dashboard-name">Juan Pérez</h2>
-                    <p className="dashboard-sub">DNI: 45611865</p>
+                    <h2 className="dashboard-name">{patientName}</h2>
+                    <p className="dashboard-sub">
+                        DNI: {patientData.dni || "No disponible"}
+                    </p>
                 </div>
             </div>
 

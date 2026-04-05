@@ -7,7 +7,7 @@ function PatientLoginPage() {
     const [dni, setDni] = useState("");
     const [password, setPassword] = useState("");
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         const dniRegex = /^\d{7,8}$/;
@@ -28,7 +28,32 @@ function PatientLoginPage() {
             return;
         }
 
-        navigate("/patient/dashboard");
+        try {
+            const response = await fetch("http://localhost:3000/api/auth/login", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    dni,
+                    password,
+                }),
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                alert("Error: " + result.message);
+                return;
+            }
+
+            localStorage.setItem("user", dni);
+            alert("Login exitoso");
+            navigate("/patient/dashboard");
+        } catch (error) {
+            console.error(error);
+            alert("Error al conectar con el backend");
+        }
     };
 
     return (

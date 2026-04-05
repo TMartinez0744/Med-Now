@@ -8,21 +8,20 @@ import DoctorRegisterPage from "./pages/DoctorRegisterPage";
 import PatientDashboardPage from "./pages/PatientDashboardPage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
 
-
 function App() {
-    return (
-        <BrowserRouter>
-            <Routes>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/login/patient" element={<PatientLoginPage />} />
-                <Route path="/login/doctor" element={<DoctorLoginPage />} />
-                <Route path="/register/patient" element={<PatientRegisterPage />} />
-                <Route path="/register/doctor" element={<DoctorRegisterPage />} />
-                <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
-                <Route path="/doctor/dashboard" element={<DoctorDashboardPage />} />
-            </Routes>
-        </BrowserRouter>
-    );
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/login/patient" element={<PatientLoginPage />} />
+        <Route path="/login/doctor" element={<DoctorLoginPage />} />
+        <Route path="/register/patient" element={<PatientRegisterPage />} />
+        <Route path="/register/doctor" element={<DoctorRegisterPage />} />
+        <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
+        <Route path="/doctor/dashboard" element={<DoctorDashboardPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }
 
 export default App;

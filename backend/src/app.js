@@ -1,15 +1,27 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
+require("dotenv").config();
+
+const authRoutes = require("./routes/authRoutes");
+const apiRoutes = require("./routes/api");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-    res.send('MedNow API funcionando');
+// Ruta base
+app.get("/", (req, res) => {
+    res.send("Backend funcionando 🚀");
 });
 
-app.listen(3000, () => {
-    console.log('Servidor corriendo en http://localhost:3000');
+// Rutas
+app.use("/api/auth", authRoutes);
+app.use("/api", apiRoutes);
+
+// Puerto
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
