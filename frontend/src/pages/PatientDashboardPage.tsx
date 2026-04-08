@@ -75,7 +75,11 @@ function PatientDashboardPage() {
     const [draftCondiciones, setDraftCondiciones] = useState<HistorialItem[]>([]);
     const [draftAlergias, setDraftAlergias] = useState<HistorialItem[]>([]);
 
-    const handleLogout = () => navigate("/");
+    const handleLogout = () => {
+        localStorage.removeItem("user");
+        localStorage.removeItem("patientData");
+        navigate("/");
+    };
 
     // ── obra social helpers ──
     const filteredObras = OBRAS_SOCIALES.filter((o) =>
