@@ -47,7 +47,15 @@ function PatientLoginPage() {
                 return;
             }
 
+            const [nombre = "", apellido = ""] = (result.user?.nombre_apellido || "").split(" ", 2);
+
             localStorage.setItem("user", dni);
+            localStorage.setItem("patientData", JSON.stringify({
+                id: result.user?.id,
+                name: nombre,
+                lastName: apellido,
+                dni: result.user?.dni
+            }));
             alert("Login exitoso");
             navigate("/patient/dashboard");
         } catch (error) {

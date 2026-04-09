@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
+import { supabase } from "../lib/supabase";
 
 interface HistorialItem {
     id: number;
@@ -75,6 +76,35 @@ function PatientDashboardPage() {
     const [draftCondiciones, setDraftCondiciones] = useState<HistorialItem[]>([]);
     const [draftAlergias, setDraftAlergias] = useState<HistorialItem[]>([]);
 
+    useEffect(() => {
+        if (!patientData.id) return;
+
+        const loadHistorial = async () => {
+            const { data, error } = await supabase
+                .from("pacientes")
+                .select("obra_social, ficha_medica")
+                .eq("id", patientData.id)
+                .single();
+
+            if (data) {
+                if (data.obra_social) setObraSocial(data.obra_social);
+                
+                const ficha = data.ficha_medica as any;
+                if (ficha) {
+                    if (ficha.condiciones) setCondiciones(ficha.condiciones);
+                    if (ficha.alergias) setAlergias(ficha.alergias);
+                } else {
+                    setCondiciones([]);
+                    setAlergias([]);
+                }
+            } else if (error) {
+                console.error("Error loading historial:", error);
+            }
+        };
+
+        loadHistorial();
+    }, [patientData.id]);
+
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("patientData");
@@ -111,10 +141,22 @@ function PatientDashboardPage() {
         setShowHistorialModal(true);
     };
 
-    const saveHistorial = () => {
+    const saveHistorial = async () => {
         setCondiciones(draftCondiciones);
         setAlergias(draftAlergias);
         setShowHistorialModal(false);
+
+        if (patientData.id) {
+            await supabase
+                .from("pacientes")
+                .update({ 
+                    ficha_medica: { 
+                        condiciones: draftCondiciones, 
+                        alergias: draftAlergias 
+                    } 
+                })
+                .eq("id", patientData.id);
+        }
     };
 
     //render
@@ -261,7 +303,16 @@ function PatientDashboardPage() {
                                 filteredObras.map((o) => (
                                     <button
                                         key={o}
-                                        onClick={() => { setObraSocial(o); setShowObraModal(false); }}
+                                        onClick={async () => { 
+                                            setObraSocial(o); 
+                                            setShowObraModal(false); 
+                                            if (patientData.id) {
+                                                await supabase
+                                                    .from("pacientes")
+                                                    .update({ obra_social: o })
+                                                    .eq("id", patientData.id);
+                                            }
+                                        }}
                                         style={{
                                             width: "100%",
                                             padding: "12px 14px",
