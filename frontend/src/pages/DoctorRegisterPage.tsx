@@ -45,8 +45,8 @@ function DoctorRegisterPage() {
                 body: JSON.stringify({
                     dni: licenseNumber,
                     password,
-                    name,
-                    lastName,
+                    nombre_apellido: `${name} ${lastName}`.trim(),
+                    tipo_usuario: "medico",
                 }),
             });
 

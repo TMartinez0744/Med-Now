@@ -31,13 +31,8 @@ function DoctorLoginPage() {
         try {
             const response = await fetch("http://localhost:3000/api/auth/login", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    dni: licenseNumber,
-                    password,
-                }),
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ dni: licenseNumber, password }),
             });
 
             const result = await response.json();
@@ -47,19 +42,18 @@ function DoctorLoginPage() {
                 return;
             }
 
+            // Guardar datos del médico en localStorage
             localStorage.setItem("user", licenseNumber);
-            const existingData = JSON.parse(localStorage.getItem("doctorData") || "{}");
-
-            if (!existingData.licenseNumber) {
-                localStorage.setItem(
-                    "doctorData",
-                    JSON.stringify({
-                        licenseNumber,
-                    })
-                );
-            }
-
-            alert("Login exitoso");
+            localStorage.setItem(
+                "doctorData",
+                JSON.stringify({
+                    id: result.user.id,
+                    licenseNumber,
+                    nombre_apellido: result.user.nombre_apellido,
+                    especialidades: result.user.medico?.especialidades ?? [],
+                    sedes: result.user.medico?.sedes ?? [],
+                })
+            );
 
             navigate("/doctor/dashboard");
         } catch (error) {

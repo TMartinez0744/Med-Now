@@ -45,6 +45,8 @@ function PatientRegisterPage() {
                 body: JSON.stringify({
                     dni,
                     password,
+                    nombre_apellido: `${name} ${lastName}`.trim(),
+                    tipo_usuario: "paciente",
                 }),
             });
 
