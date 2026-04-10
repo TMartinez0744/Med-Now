@@ -7,6 +7,8 @@ import PatientRegisterPage from "./pages/PatientRegisterPage";
 import DoctorRegisterPage from "./pages/DoctorRegisterPage";
 import PatientDashboardPage from "./pages/PatientDashboardPage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
+import PatientTurnosPage from "./pages/PatientTurnosPage";
+import DoctorTurnosPage from "./pages/DoctorTurnosPage";
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
         <Route path="/register/doctor" element={<DoctorRegisterPage />} />
         <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
         <Route path="/doctor/dashboard" element={<DoctorDashboardPage />} />
+        <Route path="/patient/turnos" element={<PatientTurnosPage />} />
+        <Route path="/doctor/turnos" element={<DoctorTurnosPage />} />
       </Routes>
     </BrowserRouter>
   );
