@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
+const disponibilidadController = require('../controllers/disponibilidadController');
 
 // Rutas REST clásicas de ejemplo para interactuar con Supabase en lugar de MongoDB
 
@@ -23,6 +24,29 @@ router.get('/medicos', async (req, res) => {
         res.json({ success: true, count: data.length, data });
     } catch (err) {
         console.error("Error obteniendo médicos:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// PUT /api/medicos/:id
+// Actualiza especialidades y sedes de un médico
+router.put('/medicos/:id', async (req, res) => {
+    const { id } = req.params;
+    const { especialidades, sedes } = req.body;
+    
+    try {
+        const { data, error } = await supabase
+            .from('medicos')
+            .update({ especialidades, sedes })
+            .eq('id', id)
+            .select()
+            .single();
+            
+        if (error) throw error;
+        
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error("Error actualizando médico:", err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
@@ -86,5 +110,17 @@ router.get('/centros_emergencia', async (req, res) => {
         res.status(500).json({ success: false, message: err.message });
     }
 });
+
+// ─── Disponibilidad de médicos ───────────────────────────────────────────────
+
+// GET    /api/medicos/:id/disponibilidad     → listar slots del médico
+// POST   /api/medicos/:id/disponibilidad     → crear slot  { dia_semana, hora_inicio, hora_fin }
+// DELETE /api/medicos/:id/disponibilidad     → eliminar todos los slots del médico
+// DELETE /api/disponibilidad/:id             → eliminar un slot específico
+
+router.get('/medicos/:id/disponibilidad',    disponibilidadController.getByMedico.bind(disponibilidadController));
+router.post('/medicos/:id/disponibilidad',   disponibilidadController.create.bind(disponibilidadController));
+router.delete('/medicos/:id/disponibilidad', disponibilidadController.deleteAllByMedico.bind(disponibilidadController));
+router.delete('/disponibilidad/:id',         disponibilidadController.delete.bind(disponibilidadController));
 
 module.exports = router;

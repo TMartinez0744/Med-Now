@@ -1,0 +1,66 @@
+const supabase = require('../config/supabase');
+
+// 0=Domingo, 1=Lunes, ..., 6=Sábado
+const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+class DisponibilidadService {
+
+    async getByMedico(medicoId) {
+        const { data, error } = await supabase
+            .from('disponibilidad')
+            .select('*')
+            .eq('medico_id', medicoId)
+            .order('dia_semana', { ascending: true })
+            .order('hora_inicio', { ascending: true });
+
+        if (error) throw error;
+
+        return data.map(s => ({
+            ...s,
+            dia_nombre: DIAS[s.dia_semana] ?? `Día ${s.dia_semana}`,
+        }));
+    }
+
+    async create(medicoId, { dia_semana, hora_inicio, hora_fin }) {
+        const { data, error } = await supabase
+            .from('disponibilidad')
+            .insert({
+                medico_id:   medicoId,
+                dia_semana:  parseInt(dia_semana),
+                hora_inicio: hora_inicio,   // "HH:MM"
+                hora_fin:    hora_fin,      // "HH:MM"
+            })
+            .select()
+            .single();
+
+        if (error) throw error;
+
+        return {
+            ...data,
+            dia_nombre: DIAS[data.dia_semana] ?? `Día ${data.dia_semana}`,
+        };
+    }
+
+    async delete(id) {
+        const { error } = await supabase
+            .from('disponibilidad')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+        return { deleted: true };
+    }
+
+    async deleteAllByMedico(medicoId) {
+        const { data, error } = await supabase
+            .from('disponibilidad')
+            .delete()
+            .eq('medico_id', medicoId)
+            .select();
+
+        if (error) throw error;
+        return { count: data.length };
+    }
+}
+
+module.exports = new DisponibilidadService();
