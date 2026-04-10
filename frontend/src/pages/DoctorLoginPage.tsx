@@ -42,6 +42,9 @@ function DoctorLoginPage() {
                 return;
             }
 
+            // Limpiar sesión previa de paciente
+            localStorage.removeItem("patientData");
+
             // Guardar datos del médico en localStorage
             localStorage.setItem("user", licenseNumber);
             localStorage.setItem(

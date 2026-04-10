@@ -146,18 +146,34 @@ function PatientDashboardPage() {
         setAlergias(draftAlergias);
         setShowHistorialModal(false);
 
-        if (patientData.id) {
-            await supabase
-                .from("pacientes")
-                .update({ 
-                    ficha_medica: { 
-                        condiciones: draftCondiciones, 
-                        alergias: draftAlergias 
-                    } 
-                })
-                .eq("id", patientData.id);
+        if (!patientData.id) {
+            console.error("saveHistorial: patientData.id está vacío", patientData);
+            alert("Error: no se encontró tu ID de paciente. Volvé a iniciar sesión.");
+            return;
+        }
+
+        const { data: updated, error } = await supabase
+            .from("pacientes")
+            .update({ 
+                ficha_medica: { 
+                    condiciones: draftCondiciones, 
+                    alergias: draftAlergias 
+                } 
+            })
+            .eq("id", patientData.id)
+            .select();
+
+        if (error) {
+            console.error("Error guardando historial:", error);
+            alert("Error al guardar: " + error.message);
+        } else if (!updated || updated.length === 0) {
+            console.error("UPDATE sin efecto — el ID no coincide con ningún paciente:", patientData.id);
+            alert("Error: el ID de paciente no se encontró en la base de datos. Volvé a iniciar sesión.");
+        } else {
+            console.log("Historial guardado correctamente ✅", updated);
         }
     };
+
 
     //render
     return (

@@ -47,16 +47,24 @@ function PatientLoginPage() {
                 return;
             }
 
-            const [nombre = "", apellido = ""] = (result.user?.nombre_apellido || "").split(" ", 2);
+            // Limpiar cualquier sesión previa de otro rol
+            localStorage.removeItem("doctorData");
 
+            // Guardar datos del paciente
             localStorage.setItem("user", dni);
-            localStorage.setItem("patientData", JSON.stringify({
-                id: result.user?.id,
-                name: nombre,
-                lastName: apellido,
-                dni: result.user?.dni
-            }));
-            alert("Login exitoso");
+            const nombreCompleto: string = result.user?.nombre_apellido ?? "";
+            const partes = nombreCompleto.trim().split(" ");
+            localStorage.setItem(
+                "patientData",
+                JSON.stringify({
+                    id: result.user?.id ?? "",
+                    dni,
+                    name: partes[0] ?? "",
+                    lastName: partes.slice(1).join(" ") ?? "",
+                    nombre_apellido: nombreCompleto,
+                })
+            );
+
             navigate("/patient/dashboard");
         } catch (error) {
             console.error(error);

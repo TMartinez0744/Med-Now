@@ -11,6 +11,7 @@ model profiles {
   nombre_apellido String
   dni             String      @unique
   tipo_usuario    String
+  password        String?
   created_at      DateTime?   @default(now()) @db.Timestamptz(6)
   
   // Relaciones
@@ -19,13 +20,14 @@ model profiles {
 }
 
 model medicos {
-  id             String      @id @db.Uuid
+  id             String               @id @db.Uuid
   especialidades String[]
   sedes          String[]
-  recibir_turnos Boolean?    @default(true)
+  recibir_turnos Boolean?             @default(true)
   
-  profile        profiles    @relation(fields: [id], references: [id], onDelete: Cascade)
+  profile        profiles             @relation(fields: [id], references: [id], onDelete: Cascade)
   turnos         turnos[]
+  disponibilidad disponibilidad[]
 }
 
 model pacientes {
@@ -56,4 +58,14 @@ model centros_emergencia {
   latitud     Float?
   longitud    Float?
   abierto_24h Boolean? @default(true)
+}
+
+model disponibilidad {
+  id          String   @id @default(uuid()) @db.Uuid
+  medico_id   String   @db.Uuid
+  dia_semana  Int
+  hora_inicio DateTime @db.Time(6)
+  hora_fin    DateTime @db.Time(6)
+
+  medico      medicos  @relation(fields: [medico_id], references: [id], onDelete: Cascade)
 }
