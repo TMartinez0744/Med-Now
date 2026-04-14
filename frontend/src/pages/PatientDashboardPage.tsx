@@ -4,6 +4,18 @@ import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
 import { supabase } from "../lib/supabase";
 
+const API = "http://localhost:3000/api";
+
+interface TurnoPaciente {
+    id: number;
+    fecha_hora: string;
+    estado: string;
+    medicos: {
+        especialidades: string[];
+        profiles: { nombre_apellido: string };
+    } | null;
+}
+
 interface HistorialItem {
     id: number;
     label: string;
@@ -76,6 +88,11 @@ function PatientDashboardPage() {
     const [draftCondiciones, setDraftCondiciones] = useState<HistorialItem[]>([]);
     const [draftAlergias, setDraftAlergias] = useState<HistorialItem[]>([]);
 
+    // estado turnos
+    const [turnos, setTurnos] = useState<TurnoPaciente[]>([]);
+    const [loadingTurnos, setLoadingTurnos] = useState(false);
+    const [cancelandoId, setCelandoId] = useState<number | null>(null);
+
     useEffect(() => {
         if (!patientData.id) return;
 
@@ -104,6 +121,34 @@ function PatientDashboardPage() {
 
         loadHistorial();
     }, [patientData.id]);
+
+    // Cargar turnos del paciente
+    useEffect(() => {
+        if (!patientData.id) return;
+        setLoadingTurnos(true);
+        fetch(`${API}/pacientes/${patientData.id}/turnos`)
+            .then((r) => r.json())
+            .then(({ data }) => setTurnos(data ?? []))
+            .catch(console.error)
+            .finally(() => setLoadingTurnos(false));
+    }, [patientData.id]);
+
+    const cancelarTurno = async (id: number) => {
+        if (!confirm("¿Cancelar este turno?")) return;
+        setCelandoId(id);
+        try {
+            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            if (res.ok) {
+                setTurnos((prev) => prev.filter((t) => t.id !== id));
+            } else {
+                alert("Error al cancelar el turno.");
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setCelandoId(null);
+        }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem("user");
@@ -191,8 +236,93 @@ function PatientDashboardPage() {
                 </div>
             </div>
 
+            {/*Card Mis Turnos*/}
+            <div className="dashboard-card">
+                <div className="profile-block-header" style={{ marginBottom: 14 }}>
+                    <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <h3 style={{ margin: 0, fontSize: 18, color: "#111827" }}>Mis Turnos</h3>
+                </div>
+
+                {loadingTurnos ? (
+                    <p className="empty-text">Cargando turnos...</p>
+                ) : turnos.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "12px 0" }}>
+                        <p className="empty-text" style={{ marginBottom: 12 }}>No tenés turnos reservados.</p>
+                        <a
+                            href="/patient/turnos"
+                            style={{ color: "#2f5cf5", fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+                        >
+                            Buscar turnos disponibles →
+                        </a>
+                    </div>
+                ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {turnos.map((turno) => {
+                            const fecha = new Date(turno.fecha_hora);
+                            const nombreMedico = turno.medicos?.profiles?.nombre_apellido ?? "Médico";
+                            const especialidad = turno.medicos?.especialidades?.[0] ?? "";
+                            const isCanceling = cancelandoId === turno.id;
+                            return (
+                                <div
+                                    key={turno.id}
+                                    style={{
+                                        background: "#f9fafb",
+                                        borderRadius: 14,
+                                        padding: "14px 16px",
+                                        border: "1px solid #f3f4f6",
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                        gap: 12,
+                                    }}
+                                >
+                                    <div>
+                                        <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
+                                            {nombreMedico}
+                                        </p>
+                                        {especialidad && (
+                                            <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
+                                                {especialidad}
+                                            </p>
+                                        )}
+                                        <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
+                                            📅 {fecha.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                                            {" "}&nbsp;🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => cancelarTurno(turno.id)}
+                                        disabled={isCanceling}
+                                        style={{
+                                            flexShrink: 0,
+                                            padding: "7px 13px",
+                                            borderRadius: 10,
+                                            border: "1px solid #fecaca",
+                                            background: "#fff5f5",
+                                            color: "#dc2626",
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            cursor: isCanceling ? "not-allowed" : "pointer",
+                                            opacity: isCanceling ? 0.5 : 1,
+                                        }}
+                                    >
+                                        {isCanceling ? "..." : "Cancelar"}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
             {/*Card Obra Social*/}
             <div className="dashboard-card">
+
                 <div className="profile-block-header">
                     <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />

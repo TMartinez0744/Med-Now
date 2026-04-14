@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const supabase = require('../config/supabase');
 const disponibilidadController = require('../controllers/disponibilidadController');
+const turnosController = require('../controllers/turnosController');
 
 // Rutas REST clásicas de ejemplo para interactuar con Supabase en lugar de MongoDB
 
@@ -122,5 +123,17 @@ router.get('/medicos/:id/disponibilidad',    disponibilidadController.getByMedic
 router.post('/medicos/:id/disponibilidad',   disponibilidadController.create.bind(disponibilidadController));
 router.delete('/medicos/:id/disponibilidad', disponibilidadController.deleteAllByMedico.bind(disponibilidadController));
 router.delete('/disponibilidad/:id',         disponibilidadController.delete.bind(disponibilidadController));
+
+// ─── Turnos (reservas) ───────────────────────────────────────────────────────
+
+// POST  /api/turnos                     → crear turno { paciente_id, medico_id, fecha_hora }
+// GET   /api/pacientes/:id/turnos       → turnos de un paciente
+// GET   /api/medicos/:id/turnos         → turnos de un médico
+// PATCH /api/turnos/:id/cancelar        → cancelar turno
+
+router.post('/turnos',                     turnosController.create.bind(turnosController));
+router.get('/pacientes/:id/turnos',        turnosController.getByPaciente.bind(turnosController));
+router.get('/medicos/:id/turnos',          turnosController.getByMedico.bind(turnosController));
+router.patch('/turnos/:id/cancelar',       turnosController.cancel.bind(turnosController));
 
 module.exports = router;
