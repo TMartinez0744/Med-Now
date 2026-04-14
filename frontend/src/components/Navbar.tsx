@@ -5,8 +5,8 @@ type NavbarProps = {
 };
 
 function Navbar({ role }: NavbarProps) {
-    const profilePath =
-        role === "doctor" ? "/doctor/dashboard" : "/patient/dashboard";
+    const profilePath = role === "doctor" ? "/doctor/dashboard" : "/patient/dashboard";
+    const turnosPath = role === "doctor" ? "/doctor/turnos" : "/patient/turnos";
 
     return (
         <nav className="navbar">
@@ -22,12 +22,9 @@ function Navbar({ role }: NavbarProps) {
             )}
             <span className="nav-item disabled">Mapa</span>
             <span className="nav-item disabled">Chat</span>
-
             <NavLink
                 to={profilePath}
-                className={({ isActive }) =>
-                    `nav-item ${isActive ? "active" : ""}`
-                }
+                className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
             >
                 Perfil
             </NavLink>
