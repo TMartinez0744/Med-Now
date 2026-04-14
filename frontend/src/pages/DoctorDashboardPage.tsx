@@ -46,7 +46,17 @@ type DaySchedule = {
     enabled: boolean;
     from: string;
     to: string;
-    slotId: string | null; // id del slot en la bbdd si existe
+    slotId: string | null;
+};
+
+type TurnoMedico = {
+    id: number;
+    fecha_hora: string;
+    estado: string;
+    paciente_id: string;
+    pacientes: {
+        profiles: { nombre_apellido: string };
+    } | null;
 };
 
 function DoctorDashboardPage() {
@@ -76,6 +86,28 @@ function DoctorDashboardPage() {
 
     const [savingProfile, setSavingProfile] = useState(false);
     const [profileMsg, setProfileMsg] = useState<string | null>(null);
+
+    // Turnos del médico
+    const [turnos, setTurnos] = useState<TurnoMedico[]>([]);
+    const [loadingTurnos, setLoadingTurnos] = useState(false);
+    const [cancelandoId, setCelandoId] = useState<number | null>(null);
+
+    const cancelarTurno = async (id: number) => {
+        if (!confirm("¿Cancelar este turno?")) return;
+        setCelandoId(id);
+        try {
+            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            if (res.ok) {
+                setTurnos((prev) => prev.filter((t) => t.id !== id));
+            } else {
+                alert("Error al cancelar el turno.");
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setCelandoId(null);
+        }
+    };
 
     const handleSaveProfile = async () => {
         if (!medicoId) return;
@@ -120,9 +152,21 @@ function DoctorDashboardPage() {
 
     const [schedule, setSchedule] = useState<Record<string, DaySchedule>>(defaultSchedule());
 
+    // Cargar turnos del médico
+    useEffect(() => {
+        if (!medicoId) return;
+        setLoadingTurnos(true);
+        fetch(`${API}/medicos/${medicoId}/turnos`)
+            .then((r) => r.json())
+            .then(({ data }) => setTurnos(data ?? []))
+            .catch(console.error)
+            .finally(() => setLoadingTurnos(false));
+    }, [medicoId]);
+
     // Cargar disponibilidad desde la API al montar
     useEffect(() => {
         if (!medicoId) return;
+
         setLoadingSchedule(true);
         fetch(`${API}/medicos/${medicoId}/disponibilidad`)
             .then((r) => r.json())
@@ -252,8 +296,84 @@ function DoctorDashboardPage() {
                 </div>
             </div>
 
+            {/* ── Card Próximos Turnos ── */}
+            <div className="dashboard-card">
+                <div className="profile-block-header" style={{ marginBottom: 14 }}>
+                    <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <h3 style={{ margin: 0, fontSize: 18, color: "#111827" }}>Próximos Turnos</h3>
+                </div>
+
+                {loadingTurnos ? (
+                    <p className="empty-text">Cargando turnos...</p>
+                ) : turnos.length === 0 ? (
+                    <p className="empty-text">No tenés turnos reservados próximamente.</p>
+                ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                        {turnos.map((turno) => {
+                            const fecha = new Date(turno.fecha_hora);
+                            const nombrePaciente = turno.pacientes?.profiles?.nombre_apellido ?? "Paciente";
+                            const isCanceling = cancelandoId === turno.id;
+                            return (
+                                <div
+                                    key={turno.id}
+                                    style={{
+                                        background: "#f9fafb", borderRadius: 14,
+                                        padding: "14px 16px", border: "1px solid #f3f4f6",
+                                        display: "flex", justifyContent: "space-between",
+                                        alignItems: "center", gap: 12,
+                                    }}
+                                >
+                                    <div>
+                                        <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
+                                            {nombrePaciente}
+                                        </p>
+                                        <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
+                                            📅 {fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+                                            {" "}🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                                        </p>
+                                        <span style={{
+                                            display: "inline-block", marginTop: 8,
+                                            padding: "3px 10px", borderRadius: 999, fontSize: 12,
+                                            background: turno.estado === "pendiente" ? "#d1fae5" : "#f3f4f6",
+                                            color: turno.estado === "pendiente" ? "#065f46" : "#6b7280",
+                                            fontWeight: 600,
+                                        }}>
+                                            {turno.estado}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => cancelarTurno(turno.id)}
+                                        disabled={isCanceling}
+                                        style={{
+                                            flexShrink: 0,
+                                            padding: "7px 13px",
+                                            borderRadius: 10,
+                                            border: "1px solid #fecaca",
+                                            background: "#fff5f5",
+                                            color: "#dc2626",
+                                            fontSize: 13,
+                                            fontWeight: 600,
+                                            cursor: isCanceling ? "not-allowed" : "pointer",
+                                            opacity: isCanceling ? 0.5 : 1,
+                                        }}
+                                    >
+                                        {isCanceling ? "..." : "Cancelar"}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
+
             <div className="dashboard-card">
                 <h3>Configuración</h3>
+
                 <button className="dashboard-button">Editar Perfil</button>
                 <button className="dashboard-button">Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
