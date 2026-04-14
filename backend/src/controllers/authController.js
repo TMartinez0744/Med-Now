@@ -35,7 +35,7 @@ const register = async (req, res) => {
 
         if (profileError) {
             console.error('Profile insert error:', profileError);
-            return res.status(500).json({ message: 'Asegúrate de ejecutar el comando SQL en Supabase que te indiqué.' });
+            return res.status(500).json({ message: 'Asegúrate de ejecutar el comando SQL en Supabase que te indiqué.', error: JSON.stringify(profileError) });
         }
 
         if (tipo_usuario === 'medico') {
@@ -64,7 +64,11 @@ const login = async (req, res) => {
             .select('id, nombre_apellido, dni, tipo_usuario, password')
             .eq('dni', dni);
 
-        if (error || !profiles || profiles.length === 0) {
+        if (error) {
+            console.error('Supabase fetch error in login:', error);
+            return res.status(500).json({ message: 'Error de red con Supabase', error });
+        }
+        if (!profiles || profiles.length === 0) {
             return res.status(401).json({ message: 'Credenciales incorrectas (Usuario no encontrado)' });
         }
 
