@@ -6,6 +6,7 @@ function DoctorRegisterPage() {
 
     const [name, setName] = useState("");
     const [lastName, setLastName] = useState("");
+    const [licenseType, setLicenseType] = useState("MN");
     const [licenseNumber, setLicenseNumber] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -13,16 +14,16 @@ function DoctorRegisterPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        const licenseRegex = /^(?:(?:M\.?\s?N\.?)|(?:M\.?\s?P\.?))?\s?\d{4,8}(?:\.\d{3})?$/i;
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+        const fullLicense = `${licenseType} ${licenseNumber.trim()}`;
 
-        if (!name || !lastName || !licenseNumber || !password || !confirmPassword) {
+        if (!name || !lastName || !licenseNumber.trim() || !password || !confirmPassword) {
             alert("Completá todos los campos");
             return;
         }
 
-        if (!licenseRegex.test(licenseNumber.trim())) {
-            alert("Ingresá una matrícula válida");
+        if (!/^\d{4,8}$/.test(licenseNumber.trim())) {
+            alert("Ingresá solo el número de matrícula (4 a 8 dígitos)");
             return;
         }
 
@@ -43,7 +44,7 @@ function DoctorRegisterPage() {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    dni: licenseNumber,
+                    dni: fullLicense,
                     password,
                     nombre_apellido: `${name} ${lastName}`.trim(),
                     tipo_usuario: "medico",
@@ -63,11 +64,11 @@ function DoctorRegisterPage() {
                 JSON.stringify({
                     name,
                     lastName,
-                    licenseNumber,
+                    licenseNumber: fullLicense,
                 })
             );
 
-            localStorage.setItem("user", licenseNumber);
+            localStorage.setItem("user", fullLicense);
 
             alert("Registro exitoso");
             navigate("/login/doctor");
@@ -111,15 +112,28 @@ function DoctorRegisterPage() {
                     </div>
 
                     <div className="auth-field">
-                        <label htmlFor="doctor-license" className="auth-label">Matrícula</label>
-                        <input
-                            id="doctor-license"
-                            className="auth-input"
-                            type="text"
-                            value={licenseNumber}
-                            onChange={(e) => setLicenseNumber(e.target.value)}
-                            placeholder="Matrícula"
-                        />
+                        <label className="auth-label">Matrícula</label>
+                        <div style={{ display: "flex", gap: 8 }}>
+                            <select
+                                value={licenseType}
+                                onChange={(e) => setLicenseType(e.target.value)}
+                                className="auth-input"
+                                style={{ width: 90, flexShrink: 0 }}
+                            >
+                                <option value="MN">M.N.</option>
+                                <option value="MP">M.P.</option>
+                            </select>
+                            <input
+                                id="doctor-license"
+                                className="auth-input"
+                                type="text"
+                                inputMode="numeric"
+                                value={licenseNumber}
+                                onChange={(e) => setLicenseNumber(e.target.value.replace(/\D/g, ""))}
+                                placeholder="Número"
+                                style={{ flex: 1 }}
+                            />
+                        </div>
                     </div>
 
                     <div className="auth-field">

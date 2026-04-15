@@ -53,7 +53,7 @@ class TurnosController {
     async cancel(req, res) {
         try {
             const { id } = req.params;
-            const turno = await turnosService.cancel(parseInt(id));
+            const turno = await turnosService.cancel(id);
             res.json({ success: true, data: turno });
         } catch (error) {
             if (error.code === 'P2025') {

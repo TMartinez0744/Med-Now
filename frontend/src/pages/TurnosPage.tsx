@@ -406,14 +406,16 @@ function TurnosPage() {
                     onClick={cerrarModal}
                     style={{
                         position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
-                        display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 200,
+                        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 200,
+                        padding: "20px",
                     }}
                 >
                     <div
                         onClick={(e) => e.stopPropagation()}
                         style={{
                             background: "white", width: "100%", maxWidth: 480,
-                            borderRadius: "24px 24px 0 0", padding: "28px 20px 36px",
+                            borderRadius: "24px", padding: "28px 20px 36px",
+                            maxHeight: "90vh", overflowY: "auto",
                         }}
                     >
                         {reservaExitosa ? (

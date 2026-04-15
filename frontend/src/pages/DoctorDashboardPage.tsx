@@ -50,7 +50,7 @@ type DaySchedule = {
 };
 
 type TurnoMedico = {
-    id: number;
+    id: string;
     fecha_hora: string;
     estado: string;
     paciente_id: string;
@@ -67,8 +67,9 @@ function DoctorDashboardPage() {
     const capitalize = (text: string) =>
         text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 
-    const doctorName = doctorData.nombre_apellido
-        ? `Dr. ${doctorData.nombre_apellido}`
+    const rawName = doctorData.nombre_apellido ?? "";
+    const doctorName = rawName
+        ? rawName.match(/^Dr[a]?\./i) ? rawName : `Dr. ${rawName}`
         : doctorData.licenseNumber
         ? `Dr. Matrícula ${doctorData.licenseNumber}`
         : "Dr. Usuario";
@@ -90,9 +91,9 @@ function DoctorDashboardPage() {
     // Turnos del médico
     const [turnos, setTurnos] = useState<TurnoMedico[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
-    const [cancelandoId, setCelandoId] = useState<number | null>(null);
+    const [cancelandoId, setCelandoId] = useState<string | null>(null);
 
-    const cancelarTurno = async (id: number) => {
+    const cancelarTurno = async (id: string) => {
         if (!confirm("¿Cancelar este turno?")) return;
         setCelandoId(id);
         try {
@@ -371,17 +372,6 @@ function DoctorDashboardPage() {
                 )}
             </div>
 
-            <div className="dashboard-card">
-                <h3>Configuración</h3>
-
-                <button className="dashboard-button">Editar Perfil</button>
-                <button className="dashboard-button">Cambiar Contraseña</button>
-                <button className="dashboard-button">Notificaciones</button>
-                <button className="dashboard-button logout" onClick={handleLogout}>
-                    Cerrar sesión
-                </button>
-            </div>
-
             <div className="dashboard-card professional-card">
                 <div className="profile-block">
                     <div className="profile-block-header">
@@ -568,6 +558,16 @@ function DoctorDashboardPage() {
                         );
                     })}
                 </div>
+            </div>
+
+            <div className="dashboard-card">
+                <h3>Configuración</h3>
+                <button className="dashboard-button">Editar Perfil</button>
+                <button className="dashboard-button">Cambiar Contraseña</button>
+                <button className="dashboard-button">Notificaciones</button>
+                <button className="dashboard-button logout" onClick={handleLogout}>
+                    Cerrar sesión
+                </button>
             </div>
 
             <Navbar role="doctor" />
