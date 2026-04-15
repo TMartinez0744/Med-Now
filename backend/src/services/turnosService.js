@@ -28,9 +28,8 @@ class TurnosService {
                 medico_id,
                 fecha_hora,
                 estado: 'pendiente',
-                notas_triage: notas_triage ?? null,
             })
-            .select('id, paciente_id, medico_id, fecha_hora, estado, notas_triage')
+            .select('id, paciente_id, medico_id, fecha_hora, estado')
             .single();
 
         if (error) throw error;
@@ -42,7 +41,7 @@ class TurnosService {
         const { data, error } = await supabase
             .from('turnos')
             .select(`
-                id, fecha_hora, estado, notas_triage,
+                id, fecha_hora, estado,
                 medico_id,
                 medicos (
                     especialidades,
@@ -63,7 +62,7 @@ class TurnosService {
         const { data, error } = await supabase
             .from('turnos')
             .select(`
-                id, fecha_hora, estado, notas_triage,
+                id, fecha_hora, estado,
                 paciente_id,
                 pacientes (
                     profiles ( nombre_apellido )

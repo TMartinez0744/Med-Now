@@ -7,7 +7,7 @@ import { supabase } from "../lib/supabase";
 const API = "http://localhost:3000/api";
 
 interface TurnoPaciente {
-    id: number;
+    id: string;
     fecha_hora: string;
     estado: string;
     medicos: {
@@ -91,7 +91,7 @@ function PatientDashboardPage() {
     // estado turnos
     const [turnos, setTurnos] = useState<TurnoPaciente[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
-    const [cancelandoId, setCelandoId] = useState<number | null>(null);
+    const [cancelandoId, setCelandoId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!patientData.id) return;
@@ -133,7 +133,7 @@ function PatientDashboardPage() {
             .finally(() => setLoadingTurnos(false));
     }, [patientData.id]);
 
-    const cancelarTurno = async (id: number) => {
+    const cancelarTurno = async (id: string) => {
         if (!confirm("¿Cancelar este turno?")) return;
         setCelandoId(id);
         try {
@@ -605,17 +605,20 @@ const overlayStyle: React.CSSProperties = {
     inset: 0,
     background: "rgba(0,0,0,0.45)",
     display: "flex",
-    alignItems: "flex-end",
+    alignItems: "center",
     justifyContent: "center",
     zIndex: 200,
+    padding: "20px",
 };
 
 const modalStyle: React.CSSProperties = {
     background: "white",
     width: "100%",
     maxWidth: 480,
-    borderRadius: "24px 24px 0 0",
+    borderRadius: "24px",
     padding: "24px 20px 32px",
+    maxHeight: "90vh",
+    overflowY: "auto",
 };
 
 const modalHeaderStyle: React.CSSProperties = {

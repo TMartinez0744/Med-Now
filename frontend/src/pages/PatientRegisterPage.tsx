@@ -57,19 +57,8 @@ function PatientRegisterPage() {
                 return;
             }
 
-            localStorage.setItem(
-                "patientData",
-                JSON.stringify({
-                    name,
-                    lastName,
-                    dni,
-                })
-            );
-
-            localStorage.setItem("user", dni);
-
             alert("Registro exitoso");
-            navigate("/patient/dashboard");
+            navigate("/login/patient");
         } catch (error) {
             console.error(error);
             alert("Error al conectar con el backend");

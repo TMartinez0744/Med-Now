@@ -1,24 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
+
+const API = "http://localhost:3000/api";
 
 const SPECIALTIES = ["Cardiología", "Clínica médica", "Dermatología", "Pediatría", "Traumatología"];
 
-const MOCK_DOCTORS = [
-    { id: 1, name: "Dr. Carlos García", specialty: "Cardiología", hospital: "Hospital Austral" },
-    { id: 2, name: "Dra. Ana Martínez", specialty: "Dermatología", hospital: "Hospital Italiano" },
-    { id: 3, name: "Dr. Luis Rodríguez", specialty: "Clínica médica", hospital: "Hospital Alemán" },
-    { id: 4, name: "Dra. Sofía López", specialty: "Pediatría", hospital: "Hospital Austral" },
-    { id: 5, name: "Dr. Martín Pérez", specialty: "Traumatología", hospital: "Sanatorio Finochietto" },
-];
-
 const MOCK_SLOTS = ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30", "15:00", "15:30"];
 
-const MOCK_DATES = [
-    { label: "Lun 13 Abr", value: "2026-04-13" },
-    { label: "Mar 14 Abr", value: "2026-04-14" },
-    { label: "Mié 15 Abr", value: "2026-04-15" },
-    { label: "Jue 16 Abr", value: "2026-04-16" },
-];
+// Genera los próximos 5 días hábiles a partir de hoy
+function getNextDates(count = 5) {
+    const dates: { label: string; value: string }[] = [];
+    const days = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+    const months = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const d = new Date();
+    while (dates.length < count) {
+        d.setDate(d.getDate() + 1);
+        if (d.getDay() !== 0 && d.getDay() !== 6) {
+            dates.push({
+                label: `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`,
+                value: d.toISOString().slice(0, 10),
+            });
+        }
+    }
+    return dates;
+}
+
+const MOCK_DATES = getNextDates(5);
+
+interface Doctor {
+    id: string;
+    name: string;
+    specialty: string;
+    hospital: string;
+}
 
 interface Turno {
     id: number;
@@ -34,25 +48,64 @@ interface HistorialTurno extends Turno {
 }
 
 function PatientTurnosPage() {
+    const patientData = JSON.parse(localStorage.getItem("patientData") || "{}");
+
     const [activeTab, setActiveTab] = useState<"proximos" | "historial">("proximos");
     const [showBookModal, setShowBookModal] = useState(false);
     const [bookStep, setBookStep] = useState<"search" | "slots">("search");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedSpecialty, setSelectedSpecialty] = useState<string | null>(null);
-    const [selectedDoctor, setSelectedDoctor] = useState<typeof MOCK_DOCTORS[0] | null>(null);
+    const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
     const [selectedDate, setSelectedDate] = useState(MOCK_DATES[0].value);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const [loadingTurnos, setLoadingTurnos] = useState(false);
+    const [cancelandoId, setCancelandoId] = useState<number | null>(null);
+    const [confirmandoTurno, setConfirmandoTurno] = useState(false);
 
-    const [upcomingTurnos, setUpcomingTurnos] = useState<Turno[]>([
-        {
-            id: 1,
-            doctor: "Dr. Carlos García",
-            specialty: "Cardiología",
-            hospital: "Hospital Austral",
-            dateLabel: "Mié 15 Abr",
-            time: "10:00",
-        },
-    ]);
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [loadingDoctors, setLoadingDoctors] = useState(false);
+
+    useEffect(() => {
+        setLoadingDoctors(true);
+        fetch(`${API}/medicos`)
+            .then((r) => r.json())
+            .then(({ data }) => {
+                const mapped: Doctor[] = (data ?? []).map((d: any) => ({
+                    id: d.id,
+                    name: d.profiles?.nombre_apellido ?? "Médico",
+                    specialty: d.especialidades?.[0] ?? "",
+                    hospital: d.sedes?.[0] ?? "",
+                }));
+                setDoctors(mapped);
+            })
+            .catch(console.error)
+            .finally(() => setLoadingDoctors(false));
+    }, []);
+
+    const [upcomingTurnos, setUpcomingTurnos] = useState<Turno[]>([]);
+
+    useEffect(() => {
+        if (!patientData.id) return;
+        setLoadingTurnos(true);
+        fetch(`${API}/pacientes/${patientData.id}/turnos`)
+            .then((r) => r.json())
+            .then(({ data }) => {
+                const turnos: Turno[] = (data ?? []).map((t: any) => {
+                    const fecha = new Date(t.fecha_hora);
+                    return {
+                        id: t.id,
+                        doctor: `Dr. ${t.medicos?.profiles?.nombre_apellido ?? "Médico"}`,
+                        specialty: t.medicos?.especialidades?.[0] ?? "",
+                        hospital: "",
+                        dateLabel: fecha.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }),
+                        time: fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+                    };
+                });
+                setUpcomingTurnos(turnos);
+            })
+            .catch(console.error)
+            .finally(() => setLoadingTurnos(false));
+    }, [patientData.id]);
 
     const [historialTurnos] = useState<HistorialTurno[]>([
         {
@@ -75,7 +128,7 @@ function PatientTurnosPage() {
         },
     ]);
 
-    const filteredDoctors = MOCK_DOCTORS.filter((d) => {
+    const filteredDoctors = doctors.filter((d) => {
         const matchesSpec = selectedSpecialty ? d.specialty === selectedSpecialty : true;
         const matchesQuery = searchQuery
             ? d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -94,29 +147,64 @@ function PatientTurnosPage() {
         setShowBookModal(true);
     };
 
-    const selectDoctor = (doctor: typeof MOCK_DOCTORS[0]) => {
+    const selectDoctor = (doctor: Doctor) => {
         setSelectedDoctor(doctor);
         setSelectedTime(null);
         setBookStep("slots");
     };
 
-    const confirmBooking = () => {
-        if (!selectedDoctor || !selectedTime) return;
-        const dateObj = MOCK_DATES.find((d) => d.value === selectedDate)!;
-        const newTurno: Turno = {
-            id: Date.now(),
-            doctor: selectedDoctor.name,
-            specialty: selectedDoctor.specialty,
-            hospital: selectedDoctor.hospital,
-            dateLabel: dateObj.label,
-            time: selectedTime,
-        };
-        setUpcomingTurnos((prev) => [...prev, newTurno]);
-        setShowBookModal(false);
+    const confirmBooking = async () => {
+        if (!selectedDoctor || !selectedTime || !patientData.id) return;
+        setConfirmandoTurno(true);
+        try {
+            const fecha_hora = `${selectedDate}T${selectedTime}:00`;
+            const res = await fetch(`${API}/turnos`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    paciente_id: patientData.id,
+                    medico_id: selectedDoctor.id,
+                    fecha_hora,
+                }),
+            });
+            const result = await res.json();
+            if (!res.ok) {
+                alert(result.message ?? "Error al reservar el turno.");
+                return;
+            }
+            const dateObj = MOCK_DATES.find((d) => d.value === selectedDate)!;
+            const newTurno: Turno = {
+                id: result.data.id,
+                doctor: selectedDoctor.name,
+                specialty: selectedDoctor.specialty,
+                hospital: selectedDoctor.hospital,
+                dateLabel: dateObj.label,
+                time: selectedTime,
+            };
+            setUpcomingTurnos((prev) => [...prev, newTurno]);
+            setShowBookModal(false);
+        } catch {
+            alert("Error al conectar con el servidor.");
+        } finally {
+            setConfirmandoTurno(false);
+        }
     };
 
-    const cancelTurno = (id: number) => {
-        setUpcomingTurnos((prev) => prev.filter((t) => t.id !== id));
+    const cancelTurno = async (id: number) => {
+        if (!confirm("¿Cancelar este turno?")) return;
+        setCancelandoId(id);
+        try {
+            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            if (res.ok) {
+                setUpcomingTurnos((prev) => prev.filter((t) => t.id !== id));
+            } else {
+                alert("Error al cancelar el turno.");
+            }
+        } catch {
+            alert("Error al conectar con el servidor.");
+        } finally {
+            setCancelandoId(null);
+        }
     };
 
     return (
@@ -144,11 +232,11 @@ function PatientTurnosPage() {
 
             {activeTab === "proximos" && (
                 <>
-                    <div style={{ margin: "16px 20px 0" }}>
+                    <div style={{ margin: "16px 20px 0", display: "flex", justifyContent: "center" }}>
                         <button
                             className="auth-button"
                             onClick={openBookModal}
-                            style={{ marginTop: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}
+                            style={{ marginTop: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%" }}
                         >
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                                 <line x1="12" y1="5" x2="12" y2="19" />
@@ -159,7 +247,9 @@ function PatientTurnosPage() {
                     </div>
 
                     <div style={{ margin: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                        {upcomingTurnos.length === 0 ? (
+                        {loadingTurnos ? (
+                            <p className="empty-text" style={{ textAlign: "center", padding: "20px 0" }}>Cargando turnos...</p>
+                        ) : upcomingTurnos.length === 0 ? (
                             <div className="dashboard-card" style={{ textAlign: "center", padding: "36px 20px" }}>
                                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" style={{ margin: "0 auto 14px", display: "block" }}>
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -172,7 +262,13 @@ function PatientTurnosPage() {
                             </div>
                         ) : (
                             upcomingTurnos.map((t) => (
-                                <TurnoCard key={t.id} turno={t} onCancel={() => cancelTurno(t.id)} showCancel />
+                                <TurnoCard
+                                    key={t.id}
+                                    turno={t}
+                                    onCancel={() => cancelTurno(t.id)}
+                                    showCancel
+                                    canceling={cancelandoId === t.id}
+                                />
                             ))
                         )}
                     </div>
@@ -198,7 +294,7 @@ function PatientTurnosPage() {
             {/* Modal reservar turno */}
             {showBookModal && (
                 <div style={overlayStyle} onClick={() => setShowBookModal(false)}>
-                    <div style={{ ...modalStyle, maxHeight: "88vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
                         {bookStep === "search" ? (
                             <>
                                 <div style={modalHeaderStyle}>
@@ -228,7 +324,9 @@ function PatientTurnosPage() {
                                 </div>
 
                                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                                    {filteredDoctors.length === 0 ? (
+                                    {loadingDoctors ? (
+                                        <p className="empty-text" style={{ textAlign: "center", padding: "20px 0" }}>Cargando médicos...</p>
+                                    ) : filteredDoctors.length === 0 ? (
                                         <p className="empty-text" style={{ textAlign: "center", padding: "20px 0" }}>Sin resultados</p>
                                     ) : (
                                         filteredDoctors.map((doc) => (
@@ -290,10 +388,10 @@ function PatientTurnosPage() {
                                 <button
                                     className="auth-button"
                                     onClick={confirmBooking}
-                                    disabled={!selectedTime}
-                                    style={{ marginTop: 0, opacity: selectedTime ? 1 : 0.5, cursor: selectedTime ? "pointer" : "default" }}
+                                    disabled={!selectedTime || confirmandoTurno}
+                                    style={{ marginTop: 0, opacity: selectedTime ? 1 : 0.5, cursor: selectedTime && !confirmandoTurno ? "pointer" : "default" }}
                                 >
-                                    Confirmar turno
+                                    {confirmandoTurno ? "Reservando..." : "Confirmar turno"}
                                 </button>
                             </>
                         )}
@@ -309,11 +407,13 @@ function TurnoCard({
     onCancel,
     showCancel = false,
     status,
+    canceling = false,
 }: {
     turno: Turno;
     onCancel?: () => void;
     showCancel?: boolean;
     status?: "completado" | "cancelado";
+    canceling?: boolean;
 }) {
     return (
         <div className="dashboard-card" style={{ margin: 0, padding: "16px 18px" }}>
@@ -347,7 +447,14 @@ function TurnoCard({
                         {status === "completado" ? "Completado" : "Cancelado"}
                     </span>
                 ) : showCancel && onCancel ? (
-                    <button onClick={onCancel} className="cancel-turno-btn">Cancelar</button>
+                    <button
+                        onClick={onCancel}
+                        disabled={canceling}
+                        className="cancel-turno-btn"
+                        style={{ opacity: canceling ? 0.5 : 1, cursor: canceling ? "not-allowed" : "pointer" }}
+                    >
+                        {canceling ? "..." : "Cancelar"}
+                    </button>
                 ) : null}
             </div>
         </div>
@@ -356,7 +463,10 @@ function TurnoCard({
 
 const overlayStyle: React.CSSProperties = {
     position: "fixed",
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     background: "rgba(0,0,0,0.45)",
     display: "flex",
     alignItems: "center",
@@ -371,6 +481,8 @@ const modalStyle: React.CSSProperties = {
     maxWidth: 480,
     borderRadius: "24px",
     padding: "24px 20px 32px",
+    maxHeight: "90vh",
+    overflowY: "auto",
 };
 
 const modalHeaderStyle: React.CSSProperties = {

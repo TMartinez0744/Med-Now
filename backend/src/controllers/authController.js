@@ -58,11 +58,14 @@ const login = async (req, res) => {
         return res.status(400).json({ message: 'DNI y password son obligatorios' });
     }
 
+    // Acepta "MN 99001", "MP 99001" o solo "99001"
+    const dniNormalizado = dni.replace(/^M[NP]\.?\s*/i, '').trim();
+
     try {
         const { data: profiles, error } = await supabase
             .from('profiles')
             .select('id, nombre_apellido, dni, tipo_usuario, password')
-            .eq('dni', dni);
+            .or(`dni.eq.${dniNormalizado},dni.eq.${dni}`);
 
         if (error) {
             console.error('Supabase fetch error in login:', error);
