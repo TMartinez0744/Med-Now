@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 
 interface PatientTurno {
@@ -14,10 +14,10 @@ interface HistorialTurno extends PatientTurno {
 }
 
 const INITIAL_UPCOMING: PatientTurno[] = [
-    { id: 1, patient: "María González", reason: "Control anual", dateLabel: "Lun 13 Abr", time: "09:00" },
-    { id: 2, patient: "Jorge Ramírez", reason: "Primera consulta", dateLabel: "Lun 13 Abr", time: "10:00" },
-    { id: 3, patient: "Laura Sánchez", reason: "Seguimiento", dateLabel: "Mar 14 Abr", time: "11:00" },
-    { id: 4, patient: "Tomás Ferreira", reason: "Control anual", dateLabel: "Mié 15 Abr", time: "09:30" },
+    { id: 1, patient: "María González", reason: "Control anual", dateLabel: "Mar 21 Abr", time: "09:00" },
+    { id: 2, patient: "Jorge Ramírez", reason: "Primera consulta", dateLabel: "Mar 21 Abr", time: "10:00" },
+    { id: 3, patient: "Laura Sánchez", reason: "Seguimiento", dateLabel: "Mié 22 Abr", time: "11:00" },
+    { id: 4, patient: "Tomás Ferreira", reason: "Control anual", dateLabel: "Jue 23 Abr", time: "09:30" },
 ];
 
 const MOCK_HISTORIAL: HistorialTurno[] = [
@@ -31,9 +31,31 @@ function DoctorTurnosPage() {
     const [upcoming, setUpcoming] = useState<PatientTurno[]>(INITIAL_UPCOMING);
     const [confirmCancelId, setConfirmCancelId] = useState<number | null>(null);
 
+    useEffect(() => {
+        const doctorData = JSON.parse(localStorage.getItem("doctorData") || "{}");
+        const capitalize = (t: string) => t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : "";
+        const doctorName = doctorData.name && doctorData.lastName
+            ? `Dr. ${capitalize(doctorData.name)} ${capitalize(doctorData.lastName)}`
+            : null;
+        if (!doctorName) return;
+        const shared: Array<{ id: number; doctorName: string; patient: string; reason: string; dateLabel: string; time: string }> =
+            JSON.parse(localStorage.getItem("sharedTurnos") || "[]");
+        const mine = shared
+            .filter((t) => t.doctorName === doctorName)
+            .map((t) => ({ id: t.id, patient: t.patient, reason: t.reason, dateLabel: t.dateLabel, time: t.time }));
+        if (mine.length > 0) {
+            setUpcoming((prev) => {
+                const ids = new Set(prev.map((t) => t.id));
+                return [...prev, ...mine.filter((t) => !ids.has(t.id))];
+            });
+        }
+    }, []);
+
     const cancelTurno = (id: number) => {
         setUpcoming((prev) => prev.filter((t) => t.id !== id));
         setConfirmCancelId(null);
+        const shared = JSON.parse(localStorage.getItem("sharedTurnos") || "[]");
+        localStorage.setItem("sharedTurnos", JSON.stringify(shared.filter((t: { id: number }) => t.id !== id)));
     };
 
     //Agrupa turnos próximos por fecha

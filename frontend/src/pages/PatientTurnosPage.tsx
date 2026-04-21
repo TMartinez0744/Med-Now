@@ -3,7 +3,6 @@ import Navbar from "../components/Navbar";
 
 const API = "http://localhost:3000/api";
 
-const SPECIALTIES = ["Cardiología", "Clínica médica", "Dermatología", "Pediatría", "Traumatología"];
 
 const MOCK_SLOTS = ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30", "15:00", "15:30"];
 
@@ -58,11 +57,8 @@ function PatientTurnosPage() {
     const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
     const [selectedDate, setSelectedDate] = useState(MOCK_DATES[0].value);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
-    const [loadingTurnos, setLoadingTurnos] = useState(false);
-    const [cancelandoId, setCancelandoId] = useState<number | null>(null);
-    const [confirmandoTurno, setConfirmandoTurno] = useState(false);
-
     const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [specialties, setSpecialties] = useState<string[]>([]);
     const [loadingDoctors, setLoadingDoctors] = useState(false);
 
     useEffect(() => {
@@ -77,35 +73,16 @@ function PatientTurnosPage() {
                     hospital: d.sedes?.[0] ?? "",
                 }));
                 setDoctors(mapped);
+                setSpecialties([...new Set(mapped.map((d) => d.specialty).filter(Boolean))]);
             })
             .catch(console.error)
             .finally(() => setLoadingDoctors(false));
     }, []);
 
-    const [upcomingTurnos, setUpcomingTurnos] = useState<Turno[]>([]);
-
-    useEffect(() => {
-        if (!patientData.id) return;
-        setLoadingTurnos(true);
-        fetch(`${API}/pacientes/${patientData.id}/turnos`)
-            .then((r) => r.json())
-            .then(({ data }) => {
-                const turnos: Turno[] = (data ?? []).map((t: any) => {
-                    const fecha = new Date(t.fecha_hora);
-                    return {
-                        id: t.id,
-                        doctor: `Dr. ${t.medicos?.profiles?.nombre_apellido ?? "Médico"}`,
-                        specialty: t.medicos?.especialidades?.[0] ?? "",
-                        hospital: "",
-                        dateLabel: fecha.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }),
-                        time: fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
-                    };
-                });
-                setUpcomingTurnos(turnos);
-            })
-            .catch(console.error)
-            .finally(() => setLoadingTurnos(false));
-    }, [patientData.id]);
+    const [upcomingTurnos, setUpcomingTurnos] = useState<Turno[]>(() => {
+        try { return JSON.parse(localStorage.getItem("patientTurnos") || "[]"); }
+        catch { return []; }
+    });
 
     const [historialTurnos] = useState<HistorialTurno[]>([
         {
@@ -153,58 +130,40 @@ function PatientTurnosPage() {
         setBookStep("slots");
     };
 
-    const confirmBooking = async () => {
-        if (!selectedDoctor || !selectedTime || !patientData.id) return;
-        setConfirmandoTurno(true);
-        try {
-            const fecha_hora = `${selectedDate}T${selectedTime}:00`;
-            const res = await fetch(`${API}/turnos`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    paciente_id: patientData.id,
-                    medico_id: selectedDoctor.id,
-                    fecha_hora,
-                }),
-            });
-            const result = await res.json();
-            if (!res.ok) {
-                alert(result.message ?? "Error al reservar el turno.");
-                return;
-            }
-            const dateObj = MOCK_DATES.find((d) => d.value === selectedDate)!;
-            const newTurno: Turno = {
-                id: result.data.id,
-                doctor: selectedDoctor.name,
-                specialty: selectedDoctor.specialty,
-                hospital: selectedDoctor.hospital,
-                dateLabel: dateObj.label,
-                time: selectedTime,
-            };
-            setUpcomingTurnos((prev) => [...prev, newTurno]);
-            setShowBookModal(false);
-        } catch {
-            alert("Error al conectar con el servidor.");
-        } finally {
-            setConfirmandoTurno(false);
-        }
+    const confirmBooking = () => {
+        if (!selectedDoctor || !selectedTime) return;
+        const dateObj = MOCK_DATES.find((d) => d.value === selectedDate)!;
+        const capitalize = (t: string) => t ? t.charAt(0).toUpperCase() + t.slice(1).toLowerCase() : "";
+        const patientName = patientData.name && patientData.lastName
+            ? `${capitalize(patientData.name)} ${capitalize(patientData.lastName)}`
+            : "Paciente";
+
+        const newTurno: Turno = {
+            id: Date.now(),
+            doctor: selectedDoctor.name,
+            specialty: selectedDoctor.specialty,
+            hospital: selectedDoctor.hospital,
+            dateLabel: dateObj.label,
+            time: selectedTime,
+        };
+
+        const updated = [...upcomingTurnos, newTurno];
+        setUpcomingTurnos(updated);
+        localStorage.setItem("patientTurnos", JSON.stringify(updated));
+
+        const shared = JSON.parse(localStorage.getItem("sharedTurnos") || "[]");
+        shared.push({ id: newTurno.id, doctorName: selectedDoctor.name, patient: patientName, reason: selectedDoctor.specialty, dateLabel: dateObj.label, time: selectedTime });
+        localStorage.setItem("sharedTurnos", JSON.stringify(shared));
+
+        setShowBookModal(false);
     };
 
-    const cancelTurno = async (id: number) => {
-        if (!confirm("¿Cancelar este turno?")) return;
-        setCancelandoId(id);
-        try {
-            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
-            if (res.ok) {
-                setUpcomingTurnos((prev) => prev.filter((t) => t.id !== id));
-            } else {
-                alert("Error al cancelar el turno.");
-            }
-        } catch {
-            alert("Error al conectar con el servidor.");
-        } finally {
-            setCancelandoId(null);
-        }
+    const cancelTurno = (id: number) => {
+        const updated = upcomingTurnos.filter((t) => t.id !== id);
+        setUpcomingTurnos(updated);
+        localStorage.setItem("patientTurnos", JSON.stringify(updated));
+        const shared = JSON.parse(localStorage.getItem("sharedTurnos") || "[]");
+        localStorage.setItem("sharedTurnos", JSON.stringify(shared.filter((t: { id: number }) => t.id !== id)));
     };
 
     return (
@@ -247,9 +206,7 @@ function PatientTurnosPage() {
                     </div>
 
                     <div style={{ margin: "16px 20px", display: "flex", flexDirection: "column", gap: 12 }}>
-                        {loadingTurnos ? (
-                            <p className="empty-text" style={{ textAlign: "center", padding: "20px 0" }}>Cargando turnos...</p>
-                        ) : upcomingTurnos.length === 0 ? (
+                        {upcomingTurnos.length === 0 ? (
                             <div className="dashboard-card" style={{ textAlign: "center", padding: "36px 20px" }}>
                                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" style={{ margin: "0 auto 14px", display: "block" }}>
                                     <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
@@ -267,7 +224,7 @@ function PatientTurnosPage() {
                                     turno={t}
                                     onCancel={() => cancelTurno(t.id)}
                                     showCancel
-                                    canceling={cancelandoId === t.id}
+                                    canceling={false}
                                 />
                             ))
                         )}
@@ -312,7 +269,7 @@ function PatientTurnosPage() {
                                 />
 
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 18 }}>
-                                    {SPECIALTIES.map((spec) => (
+                                    {specialties.map((spec) => (
                                         <button
                                             key={spec}
                                             onClick={() => setSelectedSpecialty(selectedSpecialty === spec ? null : spec)}
@@ -388,10 +345,10 @@ function PatientTurnosPage() {
                                 <button
                                     className="auth-button"
                                     onClick={confirmBooking}
-                                    disabled={!selectedTime || confirmandoTurno}
-                                    style={{ marginTop: 0, opacity: selectedTime ? 1 : 0.5, cursor: selectedTime && !confirmandoTurno ? "pointer" : "default" }}
+                                    disabled={!selectedTime}
+                                    style={{ marginTop: 0, opacity: selectedTime ? 1 : 0.5, cursor: selectedTime ? "pointer" : "default" }}
                                 >
-                                    {confirmandoTurno ? "Reservando..." : "Confirmar turno"}
+                                    Confirmar turno
                                 </button>
                             </>
                         )}
