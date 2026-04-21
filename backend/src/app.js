@@ -12,7 +12,7 @@ app.use(express.json());
 
 // Ruta base
 app.get("/", (req, res) => {
-    res.send("Backend funcionando 🚀");
+    res.send("Backend funcionando");
 });
 
 // Rutas
