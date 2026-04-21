@@ -49,6 +49,30 @@ class TurnosController {
         }
     }
 
+    // GET /api/pacientes/:id/turnos/historial
+    async getHistorialByPaciente(req, res) {
+        try {
+            const { id } = req.params;
+            const turnos = await turnosService.getHistorialByPaciente(id);
+            res.json({ success: true, count: turnos.length, data: turnos });
+        } catch (error) {
+            console.error('Error en TurnosController.getHistorialByPaciente:', error);
+            res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        }
+    }
+
+    // GET /api/medicos/:id/turnos/historial
+    async getHistorialByMedico(req, res) {
+        try {
+            const { id } = req.params;
+            const turnos = await turnosService.getHistorialByMedico(id);
+            res.json({ success: true, count: turnos.length, data: turnos });
+        } catch (error) {
+            console.error('Error en TurnosController.getHistorialByMedico:', error);
+            res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        }
+    }
+
     // PATCH /api/turnos/:id/cancelar
     async cancel(req, res) {
         try {
