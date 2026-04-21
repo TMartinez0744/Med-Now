@@ -134,6 +134,8 @@ router.delete('/disponibilidad/:id',         disponibilidadController.delete.bin
 router.post('/turnos',                     turnosController.create.bind(turnosController));
 router.get('/pacientes/:id/turnos',        turnosController.getByPaciente.bind(turnosController));
 router.get('/medicos/:id/turnos',          turnosController.getByMedico.bind(turnosController));
+router.get('/pacientes/:id/turnos/historial', turnosController.getHistorialByPaciente.bind(turnosController));
+router.get('/medicos/:id/turnos/historial',   turnosController.getHistorialByMedico.bind(turnosController));
 router.patch('/turnos/:id/cancelar',       turnosController.cancel.bind(turnosController));
 
 module.exports = router;
