@@ -4,7 +4,8 @@ import personIcon from "../assets/person.svg";
 import biotechIcon from "../assets/biotech.svg";
 import locationIcon from "../assets/location_on.svg";
 import clockIcon from "../assets/access_time.svg";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 
 const API = "http://localhost:3000/api";
 
@@ -67,12 +68,35 @@ function DoctorDashboardPage() {
     const capitalize = (text: string) =>
         text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 
-    const rawName = doctorData.nombre_apellido ?? "";
-    const doctorName = rawName
-        ? rawName.match(/^Dr[a]?\./i) ? rawName : `Dr. ${rawName}`
-        : doctorData.licenseNumber
-        ? `Dr. Matrícula ${doctorData.licenseNumber}`
-        : "Dr. Usuario";
+    const buildDoctorName = (raw: string) =>
+        raw
+            ? raw.match(/^Dr[a]?\./i) ? raw : `Dr. ${raw}`
+            : doctorData.licenseNumber
+            ? `Dr. Matrícula ${doctorData.licenseNumber}`
+            : "Dr. Usuario";
+
+    const [displayName, setDisplayName] = useState(buildDoctorName(doctorData.nombre_apellido ?? ""));
+    const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+    const [draftNombre, setDraftNombre] = useState(doctorData.nombre_apellido ?? "");
+    const [savingName, setSavingName] = useState(false);
+
+    const saveProfileName = async () => {
+        if (!draftNombre.trim()) return;
+        setSavingName(true);
+        const { error } = await supabase
+            .from("profiles")
+            .update({ nombre_apellido: draftNombre.trim() })
+            .eq("id", medicoId);
+        if (!error) {
+            const updated = { ...doctorData, nombre_apellido: draftNombre.trim() };
+            localStorage.setItem("doctorData", JSON.stringify(updated));
+            setDisplayName(buildDoctorName(draftNombre.trim()));
+            setShowEditProfileModal(false);
+        } else {
+            alert("Error al guardar: " + error.message);
+        }
+        setSavingName(false);
+    };
 
     const doctorLicense = doctorData.licenseNumber
         ? `Matrícula: ${doctorData.licenseNumber}`
@@ -292,7 +316,7 @@ function DoctorDashboardPage() {
                     <img src={personIcon} alt="Usuario" className="avatar-icon" />
                 </div>
                 <div>
-                    <h2 className="dashboard-name">{doctorName}</h2>
+                    <h2 className="dashboard-name">{displayName}</h2>
                     <p className="dashboard-sub">{doctorLicense}</p>
                 </div>
             </div>
@@ -390,7 +414,7 @@ function DoctorDashboardPage() {
                     </div>
 
                     <div className="options-grid">
-                        {SPECIALTIES.map((spec) => (
+                        {[...new Set([...SPECIALTIES, ...specialties])].map((spec) => (
                             <label
                                 key={spec}
                                 className={`option-card ${specialties.includes(spec) ? "selected" : ""}`}
@@ -427,7 +451,7 @@ function DoctorDashboardPage() {
                     </div>
 
                     <div className="options-grid">
-                        {HOSPITALS.map((hospital) => (
+                        {[...new Set([...HOSPITALS, ...hospitals])].map((hospital) => (
                             <label
                                 key={hospital}
                                 className={`option-card ${hospitals.includes(hospital) ? "selected" : ""}`}
@@ -562,7 +586,7 @@ function DoctorDashboardPage() {
 
             <div className="dashboard-card">
                 <h3>Configuración</h3>
-                <button className="dashboard-button">Editar Perfil</button>
+                <button className="dashboard-button" onClick={() => { setDraftNombre(doctorData.nombre_apellido ?? ""); setShowEditProfileModal(true); }}>Editar Perfil</button>
                 <button className="dashboard-button">Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
                 <button className="dashboard-button logout" onClick={handleLogout}>
@@ -571,8 +595,66 @@ function DoctorDashboardPage() {
             </div>
 
             <Navbar role="doctor" />
+
+            {/* modal editar perfil */}
+            {showEditProfileModal && (
+                <div style={overlayStyle} onClick={() => setShowEditProfileModal(false)}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, fontSize: 18 }}>Editar Perfil</h3>
+                            <button onClick={() => setShowEditProfileModal(false)} style={closeBtnStyle}>✕</button>
+                        </div>
+                        <label style={{ fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4 }}>Nombre y apellido</label>
+                        <input
+                            className="auth-input"
+                            placeholder="Ej: García López"
+                            value={draftNombre}
+                            onChange={(e) => setDraftNombre(e.target.value)}
+                            style={{ marginBottom: 20 }}
+                            autoFocus
+                        />
+                        <button className="auth-button" onClick={saveProfileName} disabled={savingName}>
+                            {savingName ? "Guardando..." : "Guardar cambios"}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
+const overlayStyle: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 200,
+    padding: "20px",
+};
+
+const modalStyle: React.CSSProperties = {
+    background: "white",
+    width: "100%",
+    maxWidth: 480,
+    borderRadius: "24px",
+    padding: "24px 20px 32px",
+};
+
+const modalHeaderStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+};
+
+const closeBtnStyle: React.CSSProperties = {
+    background: "none",
+    border: "none",
+    fontSize: 18,
+    cursor: "pointer",
+    color: "#6b7280",
+};
 
 export default DoctorDashboardPage;

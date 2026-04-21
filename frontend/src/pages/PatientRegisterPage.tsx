@@ -103,6 +103,7 @@ function PatientRegisterPage() {
                             id="patient-dni"
                             className="auth-input"
                             type="text"
+                            inputMode="numeric"
                             value={dni}
                             onChange={(e) => {
                                 const value = e.target.value.replace(/\D/g, "");

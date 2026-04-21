@@ -63,10 +63,35 @@ function PatientDashboardPage() {
         return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
     };
 
-    const patientName =
+    const [displayName, setDisplayName] = useState(
         patientData.name && patientData.lastName
             ? `${capitalize(patientData.name)} ${capitalize(patientData.lastName)}`
-            : "Usuario";
+            : "Usuario"
+    );
+
+    const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+    const [draftName, setDraftName] = useState(patientData.name ?? "");
+    const [draftLastName, setDraftLastName] = useState(patientData.lastName ?? "");
+    const [savingName, setSavingName] = useState(false);
+
+    const saveProfileName = async () => {
+        if (!draftName.trim()) return;
+        setSavingName(true);
+        const nombreCompleto = `${draftName.trim()} ${draftLastName.trim()}`.trim();
+        const { error } = await supabase
+            .from("profiles")
+            .update({ nombre_apellido: nombreCompleto })
+            .eq("id", patientData.id);
+        if (!error) {
+            const updated = { ...patientData, name: draftName.trim(), lastName: draftLastName.trim(), nombre_apellido: nombreCompleto };
+            localStorage.setItem("patientData", JSON.stringify(updated));
+            setDisplayName(`${capitalize(draftName.trim())} ${capitalize(draftLastName.trim())}`);
+            setShowEditProfileModal(false);
+        } else {
+            alert("Error al guardar: " + error.message);
+        }
+        setSavingName(false);
+    };
 
     // estado obra social
     const [obraSocial, setObraSocial] = useState("OSDE");
@@ -229,7 +254,7 @@ function PatientDashboardPage() {
                     <img src={personIcon} alt="Usuario" className="avatar-icon" />
                 </div>
                 <div>
-                    <h2 className="dashboard-name">{patientName}</h2>
+                    <h2 className="dashboard-name">{displayName}</h2>
                     <p className="dashboard-sub">
                         DNI: {patientData.dni || "No disponible"}
                     </p>
@@ -414,7 +439,7 @@ function PatientDashboardPage() {
             {/* ── Card Configuración ── */}
             <div className="dashboard-card">
                 <h3>Configuración</h3>
-                <button className="dashboard-button">Editar Perfil</button>
+                <button className="dashboard-button" onClick={() => { setDraftName(patientData.name ?? ""); setDraftLastName(patientData.lastName ?? ""); setShowEditProfileModal(true); }}>Editar Perfil</button>
                 <button className="dashboard-button">Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
                 <button className="dashboard-button logout" onClick={handleLogout}>
@@ -477,6 +502,37 @@ function PatientDashboardPage() {
                                 ))
                             )}
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* modal editar perfil */}
+            {showEditProfileModal && (
+                <div style={overlayStyle} onClick={() => setShowEditProfileModal(false)}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, fontSize: 18 }}>Editar Perfil</h3>
+                            <button onClick={() => setShowEditProfileModal(false)} style={closeBtnStyle}>✕</button>
+                        </div>
+                        <label style={{ fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4 }}>Nombre</label>
+                        <input
+                            className="auth-input"
+                            placeholder="Nombre"
+                            value={draftName}
+                            onChange={(e) => setDraftName(e.target.value)}
+                            style={{ marginBottom: 12 }}
+                        />
+                        <label style={{ fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4 }}>Apellido</label>
+                        <input
+                            className="auth-input"
+                            placeholder="Apellido"
+                            value={draftLastName}
+                            onChange={(e) => setDraftLastName(e.target.value)}
+                            style={{ marginBottom: 20 }}
+                        />
+                        <button className="auth-button" onClick={saveProfileName} disabled={savingName}>
+                            {savingName ? "Guardando..." : "Guardar cambios"}
+                        </button>
                     </div>
                 </div>
             )}
