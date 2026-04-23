@@ -89,9 +89,8 @@ function PatientDashboardPage() {
     const [draftAlergias, setDraftAlergias] = useState<HistorialItem[]>([]);
 
     // estado turnos
-    const [turnos, setTurnos] = useState<TurnoPaciente[]>([]);
+    const [proximoTurno, setProximoTurno] = useState<TurnoPaciente | null>(null);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
-    const [cancelandoId, setCelandoId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!patientData.id) return;
@@ -122,33 +121,16 @@ function PatientDashboardPage() {
         loadHistorial();
     }, [patientData.id]);
 
-    // Cargar turnos del paciente
+    // Cargar próximo turno del paciente
     useEffect(() => {
         if (!patientData.id) return;
         setLoadingTurnos(true);
         fetch(`${API}/pacientes/${patientData.id}/turnos`)
             .then((r) => r.json())
-            .then(({ data }) => setTurnos(data ?? []))
+            .then(({ data }) => setProximoTurno((data ?? [])[0] ?? null))
             .catch(console.error)
             .finally(() => setLoadingTurnos(false));
     }, [patientData.id]);
-
-    const cancelarTurno = async (id: string) => {
-        if (!confirm("¿Cancelar este turno?")) return;
-        setCelandoId(id);
-        try {
-            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
-            if (res.ok) {
-                setTurnos((prev) => prev.filter((t) => t.id !== id));
-            } else {
-                alert("Error al cancelar el turno.");
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setCelandoId(null);
-        }
-    };
 
     const handleLogout = () => {
         localStorage.removeItem("user");
@@ -250,7 +232,7 @@ function PatientDashboardPage() {
 
                 {loadingTurnos ? (
                     <p className="empty-text">Cargando turnos...</p>
-                ) : turnos.length === 0 ? (
+                ) : !proximoTurno ? (
                     <div style={{ textAlign: "center", padding: "12px 0" }}>
                         <p className="empty-text" style={{ marginBottom: 12 }}>No tenés turnos reservados.</p>
                         <a
@@ -261,62 +243,33 @@ function PatientDashboardPage() {
                         </a>
                     </div>
                 ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                        {turnos.map((turno) => {
-                            const fecha = new Date(turno.fecha_hora);
-                            const nombreMedico = turno.medicos?.profiles?.nombre_apellido ?? "Médico";
-                            const especialidad = turno.medicos?.especialidades?.[0] ?? "";
-                            const isCanceling = cancelandoId === turno.id;
-                            return (
-                                <div
-                                    key={turno.id}
-                                    style={{
-                                        background: "#f9fafb",
-                                        borderRadius: 14,
-                                        padding: "14px 16px",
-                                        border: "1px solid #f3f4f6",
-                                        display: "flex",
-                                        justifyContent: "space-between",
-                                        alignItems: "center",
-                                        gap: 12,
-                                    }}
-                                >
-                                    <div>
-                                        <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                            {nombreMedico}
-                                        </p>
-                                        {especialidad && (
-                                            <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
-                                                {especialidad}
-                                            </p>
-                                        )}
-                                        <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
-                                            📅 {fecha.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
-                                            {" "}&nbsp;🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
-                                        </p>
-                                    </div>
-                                    <button
-                                        onClick={() => cancelarTurno(turno.id)}
-                                        disabled={isCanceling}
-                                        style={{
-                                            flexShrink: 0,
-                                            padding: "7px 13px",
-                                            borderRadius: 10,
-                                            border: "1px solid #fecaca",
-                                            background: "#fff5f5",
-                                            color: "#dc2626",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            cursor: isCanceling ? "not-allowed" : "pointer",
-                                            opacity: isCanceling ? 0.5 : 1,
-                                        }}
-                                    >
-                                        {isCanceling ? "..." : "Cancelar"}
-                                    </button>
-                                </div>
-                            );
-                        })}
-                    </div>
+                    <>
+                        <div style={{
+                            background: "#f9fafb",
+                            borderRadius: 14,
+                            padding: "14px 16px",
+                            border: "1px solid #f3f4f6",
+                        }}>
+                            <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
+                                {proximoTurno.medicos?.profiles?.nombre_apellido ?? "Médico"}
+                            </p>
+                            {proximoTurno.medicos?.especialidades?.[0] && (
+                                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
+                                    {proximoTurno.medicos.especialidades[0]}
+                                </p>
+                            )}
+                            <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
+                                📅 {new Date(proximoTurno.fecha_hora).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                                {" "}&nbsp;🕐 {new Date(proximoTurno.fecha_hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                            </p>
+                        </div>
+                        <a
+                            href="/patient/turnos"
+                            style={{ display: "block", textAlign: "right", marginTop: 10, color: "#2f5cf5", fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+                        >
+                            Ver todos mis turnos →
+                        </a>
+                    </>
                 )}
             </div>
 
