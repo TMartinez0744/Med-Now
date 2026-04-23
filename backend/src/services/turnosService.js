@@ -77,6 +77,43 @@ class TurnosService {
         return data;
     }
 
+    // Historial de turnos de un paciente
+    async getHistorialByPaciente(pacienteId) {
+        const { data, error } = await supabase
+            .from('turnos')
+            .select(`
+                id, fecha_hora, estado,
+                medico_id,
+                medicos (
+                    especialidades,
+                    profiles ( nombre_apellido )
+                )
+            `)
+            .eq('paciente_id', pacienteId)
+            .order('fecha_hora', { ascending: false });
+
+        if (error) throw error;
+        return data;
+    }
+
+    // Historial de turnos de un médico
+    async getHistorialByMedico(medicoId) {
+        const { data, error } = await supabase
+            .from('turnos')
+            .select(`
+                id, fecha_hora, estado,
+                paciente_id,
+                pacientes (
+                    profiles ( nombre_apellido )
+                )
+            `)
+            .eq('medico_id', medicoId)
+            .order('fecha_hora', { ascending: false });
+
+        if (error) throw error;
+        return data;
+    }
+
     // Cancelar turno
     async cancel(id) {
         const { data, error } = await supabase
