@@ -41,13 +41,18 @@ type SlotDB = {
     hora_inicio: string;
     hora_fin: string;
     dia_nombre: string;
+    sede: string | null;
+};
+
+type Interval = {
+    from: string;
+    to: string;
+    slotId: string | null;
 };
 
 type DaySchedule = {
     enabled: boolean;
-    from: string;
-    to: string;
-    slotId: string | null;
+    intervals: Interval[];
 };
 
 type TurnoMedico = {
@@ -165,17 +170,23 @@ function DoctorDashboardPage() {
     const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [savingSchedule, setSavingSchedule] = useState(false);
     const [scheduleMsg, setScheduleMsg] = useState<string | null>(null);
+    const [selectedSede, setSelectedSede] = useState<string | null>(
+        doctorData.sedes?.[0] ?? null
+    );
 
-    // Estado del horario: día → { enabled, from, to, slotId }
-    const defaultSchedule = (): Record<string, DaySchedule> =>
+    // Estado del horario: sede → día → { enabled, intervals[] }
+    const defaultSedeSchedule = (): Record<string, DaySchedule> =>
         Object.fromEntries(
             DIAS.map(({ nombre }) => [
                 nombre,
-                { enabled: !["Sábado", "Domingo"].includes(nombre), from: "08:00", to: "18:00", slotId: null },
+                {
+                    enabled: !["Sábado", "Domingo"].includes(nombre),
+                    intervals: [{ from: "08:00", to: "18:00", slotId: null }],
+                },
             ])
         );
 
-    const [schedule, setSchedule] = useState<Record<string, DaySchedule>>(defaultSchedule());
+    const [schedulesBySede, setSchedulesBySede] = useState<Record<string, Record<string, DaySchedule>>>({});
 
     // Cargar turnos del médico
     useEffect(() => {
@@ -188,6 +199,15 @@ function DoctorDashboardPage() {
             .finally(() => setLoadingTurnos(false));
     }, [medicoId]);
 
+    // Cuando cambian las sedes, asegurar que selectedSede sea válida
+    useEffect(() => {
+        setSelectedSede((prev) => {
+            if (hospitals.length === 0) return null;
+            if (prev && hospitals.includes(prev)) return prev;
+            return hospitals[0];
+        });
+    }, [hospitals]);
+
     // Cargar disponibilidad desde la API al montar
     useEffect(() => {
         if (!medicoId) return;
@@ -196,27 +216,34 @@ function DoctorDashboardPage() {
         fetch(`${API}/medicos/${medicoId}/disponibilidad`)
             .then((r) => r.json())
             .then(({ data }: { data: SlotDB[] }) => {
+                console.log('[load disponibilidad]', data);
                 if (!data || data.length === 0) return;
-                setSchedule((prev) => {
-                    const updated = { ...prev };
-                    // Marcar todos como deshabilitados primero
-                    DIAS.forEach(({ nombre }) => {
-                        updated[nombre] = { ...updated[nombre], enabled: false, slotId: null };
+
+                const bySedeDay: Record<string, Record<string, Interval[]>> = {};
+                data.forEach((slot) => {
+                    const sedeName = slot.sede ?? "__sin_sede__";
+                    const diaObj = DIAS.find((d) => d.index === slot.dia_semana);
+                    if (!diaObj) return;
+                    if (!bySedeDay[sedeName]) bySedeDay[sedeName] = {};
+                    if (!bySedeDay[sedeName][diaObj.nombre]) bySedeDay[sedeName][diaObj.nombre] = [];
+                    bySedeDay[sedeName][diaObj.nombre].push({
+                        from: slot.hora_inicio.slice(0, 5),
+                        to: slot.hora_fin.slice(0, 5),
+                        slotId: slot.id,
                     });
-                    // Activar los que vienen de la bbdd
-                    data.forEach((slot) => {
-                        const dia = DIAS.find((d) => d.index === slot.dia_semana);
-                        if (dia) {
-                            updated[dia.nombre] = {
-                                enabled: true,
-                                from: slot.hora_inicio.slice(0, 5),
-                                to: slot.hora_fin.slice(0, 5),
-                                slotId: slot.id,
-                            };
-                        }
-                    });
-                    return updated;
                 });
+
+                const built: Record<string, Record<string, DaySchedule>> = {};
+                Object.entries(bySedeDay).forEach(([sede, days]) => {
+                    built[sede] = {};
+                    DIAS.forEach(({ nombre }) => {
+                        const intervals = days[nombre];
+                        built[sede][nombre] = intervals
+                            ? { enabled: true, intervals }
+                            : { enabled: false, intervals: [{ from: "08:00", to: "18:00", slotId: null }] };
+                    });
+                });
+                setSchedulesBySede(built);
             })
             .catch(console.error)
             .finally(() => setLoadingSchedule(false));
@@ -236,70 +263,146 @@ function DoctorDashboardPage() {
         setList(list.includes(value) ? list.filter((i) => i !== value) : [...list, value]);
     };
 
+    const getSedeSchedule = (sede: string): Record<string, DaySchedule> =>
+        schedulesBySede[sede] ?? defaultSedeSchedule();
+
+    const addMinutes = (time: string, mins: number): string => {
+        const [h, m] = time.split(":").map(Number);
+        const total = h * 60 + m + mins;
+        return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    };
+    const addMinute = (time: string) => addMinutes(time, 1);
+    const addHour  = (time: string) => addMinutes(time, 60);
+
     const toggleDaySchedule = (day: string) => {
-        setSchedule((prev) => ({
-            ...prev,
-            [day]: { ...prev[day], enabled: !prev[day].enabled },
-        }));
+        if (!selectedSede) return;
+        setSchedulesBySede((prev) => {
+            const sedeSchedule = prev[selectedSede] ?? defaultSedeSchedule();
+            return {
+                ...prev,
+                [selectedSede]: {
+                    ...sedeSchedule,
+                    [day]: { ...sedeSchedule[day], enabled: !sedeSchedule[day].enabled },
+                },
+            };
+        });
     };
 
-    const updateScheduleTime = (day: string, field: "from" | "to", value: string) => {
-        setSchedule((prev) => ({
-            ...prev,
-            [day]: { ...prev[day], [field]: value },
-        }));
+    const updateInterval = (day: string, idx: number, field: "from" | "to", value: string) => {
+        if (!selectedSede) return;
+        setSchedulesBySede((prev) => {
+            const sedeSchedule = prev[selectedSede] ?? defaultSedeSchedule();
+            const dayData = sedeSchedule[day];
+            let newIntervals = dayData.intervals.map((iv, i) =>
+                i === idx ? { ...iv, [field]: value } : iv
+            );
+
+            // Asegurar que el fin sea siempre posterior al inicio del mismo intervalo
+            if (field === "from" && newIntervals[idx].to <= value) {
+                newIntervals[idx] = { ...newIntervals[idx], to: addMinute(value) };
+            }
+            if (field === "to" && newIntervals[idx].from >= value) {
+                newIntervals[idx] = { ...newIntervals[idx], from: value, to: addMinute(value) };
+            }
+
+            // Si existe un segundo intervalo, asegurar que empiece al menos 1 hora después del fin del primero
+            if (newIntervals.length === 2 && newIntervals[1].from <= newIntervals[0].to) {
+                const newFrom = addHour(newIntervals[0].to);
+                const newTo = newFrom >= newIntervals[1].to ? addHour(newFrom) : newIntervals[1].to;
+                newIntervals[1] = { ...newIntervals[1], from: newFrom, to: newTo };
+            }
+
+            return {
+                ...prev,
+                [selectedSede]: { ...sedeSchedule, [day]: { ...dayData, intervals: newIntervals } },
+            };
+        });
     };
 
-    // Guardar horario: borra todos los slots y los recrea según el estado actual
+    const addInterval = (day: string) => {
+        if (!selectedSede) return;
+        setSchedulesBySede((prev) => {
+            const sedeSchedule = prev[selectedSede] ?? defaultSedeSchedule();
+            const dayData = sedeSchedule[day];
+            if (dayData.intervals.length >= 2) return prev;
+            return {
+                ...prev,
+                [selectedSede]: {
+                    ...sedeSchedule,
+                    [day]: {
+                        ...dayData,
+                        intervals: (() => {
+                const morningEnd = dayData.intervals[0]?.to ?? "13:00";
+                const defaultFrom = addHour(morningEnd) >= "15:00" ? addHour(morningEnd) : "15:00";
+                const defaultTo = defaultFrom >= "18:00" ? addHour(defaultFrom) : "18:00";
+                return [...dayData.intervals, { from: defaultFrom, to: defaultTo, slotId: null }];
+            })(),
+                    },
+                },
+            };
+        });
+    };
+
+    const removeInterval = (day: string, idx: number) => {
+        if (!selectedSede) return;
+        setSchedulesBySede((prev) => {
+            const sedeSchedule = prev[selectedSede] ?? defaultSedeSchedule();
+            const dayData = sedeSchedule[day];
+            const newIntervals = dayData.intervals.filter((_, i) => i !== idx);
+            return {
+                ...prev,
+                [selectedSede]: {
+                    ...sedeSchedule,
+                    [day]: {
+                        ...dayData,
+                        intervals: newIntervals.length > 0 ? newIntervals : [{ from: "08:00", to: "18:00", slotId: null }],
+                    },
+                },
+            };
+        });
+    };
+
+    // Guardar horario de la sede seleccionada
     const handleSaveSchedule = async () => {
-        if (!medicoId) {
-            alert("No se encontró el ID del médico. Volvé a iniciar sesión.");
-            return;
-        }
+        if (!medicoId || !selectedSede) return;
         setSavingSchedule(true);
         setScheduleMsg(null);
+        const currentSchedule = getSedeSchedule(selectedSede);
         try {
-            // 1. Borrar todos los slots actuales
-            await fetch(`${API}/medicos/${medicoId}/disponibilidad`, { method: "DELETE" });
-
-            // 2. Crear los nuevos slots para los días habilitados
-            const creates = DIAS.filter(({ nombre }) => schedule[nombre]?.enabled).map(
-                ({ nombre, index }) =>
-                    fetch(`${API}/medicos/${medicoId}/disponibilidad`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            dia_semana: index,
-                            hora_inicio: schedule[nombre].from,
-                            hora_fin: schedule[nombre].to,
-                        }),
-                    }).then((r) => r.json())
+            // 1. Borrar slots de esta sede
+            await fetch(
+                `${API}/medicos/${medicoId}/disponibilidad?sede=${encodeURIComponent(selectedSede)}`,
+                { method: "DELETE" }
             );
+
+            // 2. Crear slots de esta sede
+            const creates: Promise<{ success: boolean }>[] = [];
+            DIAS.forEach(({ nombre, index }) => {
+                const day = currentSchedule[nombre];
+                if (!day?.enabled) return;
+                day.intervals.forEach((interval) => {
+                    creates.push(
+                        fetch(`${API}/medicos/${medicoId}/disponibilidad`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                dia_semana: index,
+                                hora_inicio: interval.from,
+                                hora_fin: interval.to,
+                                sede: selectedSede,
+                            }),
+                        }).then((r) => r.json())
+                    );
+                });
+            });
 
             const results = await Promise.all(creates);
             const hasError = results.some((r) => !r.success);
-            if (hasError) {
-                setScheduleMsg("⚠️ Algunos horarios no se guardaron correctamente.");
-            } else {
-                setScheduleMsg("✅ Horarios guardados correctamente.");
-            }
-
-            // Recargar para actualizar los slotIds
-            const fresh = await fetch(`${API}/medicos/${medicoId}/disponibilidad`).then((r) => r.json());
-            if (fresh.data) {
-                setSchedule((prev) => {
-                    const updated = { ...prev };
-                    DIAS.forEach(({ nombre }) => {
-                        updated[nombre] = { ...updated[nombre], slotId: null };
-                    });
-                    (fresh.data as SlotDB[]).forEach((slot) => {
-                        const dia = DIAS.find((d) => d.index === slot.dia_semana);
-                        if (dia) updated[dia.nombre].slotId = slot.id;
-                    });
-                    return updated;
-                });
-            }
-
+            setScheduleMsg(
+                hasError
+                    ? "⚠️ Algunos horarios no se guardaron correctamente."
+                    : "✅ Horarios guardados correctamente."
+            );
             setIsEditingSchedule(false);
         } catch (err) {
             console.error(err);
@@ -490,7 +593,7 @@ function DoctorDashboardPage() {
                         <button
                             className="schedule-secondary-button"
                             onClick={() => setIsEditingSchedule(true)}
-                            disabled={loadingSchedule}
+                            disabled={loadingSchedule || hospitals.length === 0}
                         >
                             {loadingSchedule ? "Cargando..." : "Editar"}
                         </button>
@@ -518,70 +621,144 @@ function DoctorDashboardPage() {
                     <p style={{ padding: "0 1rem 0.5rem", fontSize: "0.9rem" }}>{scheduleMsg}</p>
                 )}
 
-                <div className="schedule-days">
-                    {DIAS.map(({ nombre }) => {
-                        const dayData = schedule[nombre];
-                        return (
-                            <div
-                                key={nombre}
-                                className={`schedule-day-item ${!dayData.enabled ? "schedule-day-disabled" : ""}`}
-                            >
-                                <div className="schedule-day-top">
-                                    <div className="schedule-day-left">
-                                        {isEditingSchedule && (
-                                            <label className="schedule-switch">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={dayData.enabled}
-                                                    onChange={() => toggleDaySchedule(nombre)}
-                                                />
-                                                <span className="schedule-slider"></span>
-                                            </label>
-                                        )}
-                                        <span className="schedule-day-name">{nombre}</span>
-                                    </div>
-                                    {!dayData.enabled && (
-                                        <span className="schedule-unavailable">No disponible</span>
-                                    )}
-                                </div>
+                {hospitals.length === 0 ? (
+                    <p className="empty-text" style={{ padding: "0 1rem 1rem" }}>
+                        Agregá al menos una sede de atención para configurar horarios.
+                    </p>
+                ) : (
+                    <>
+                        {/* Tabs de hospitales */}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", padding: "0 1rem 1rem" }}>
+                            {hospitals.map((h) => (
+                                <button
+                                    key={h}
+                                    onClick={() => { setSelectedSede(h); setIsEditingSchedule(false); setScheduleMsg(null); }}
+                                    style={{
+                                        padding: "6px 14px",
+                                        borderRadius: 999,
+                                        border: "1.5px solid",
+                                        borderColor: selectedSede === h ? "#2f5cf5" : "#e5e7eb",
+                                        background: selectedSede === h ? "#eef2ff" : "#fff",
+                                        color: selectedSede === h ? "#2f5cf5" : "#6b7280",
+                                        fontWeight: selectedSede === h ? 700 : 400,
+                                        fontSize: 13,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {h}
+                                </button>
+                            ))}
+                        </div>
 
-                                {dayData.enabled && (
-                                    <>
-                                        {isEditingSchedule ? (
-                                            <div className="schedule-time-row">
-                                                <span className="schedule-time-label">Horario:</span>
-                                                <input
-                                                    type="time"
-                                                    value={dayData.from}
-                                                    className="schedule-time-input"
-                                                    onChange={(e) =>
-                                                        updateScheduleTime(nombre, "from", e.target.value)
-                                                    }
-                                                />
-                                                <span className="schedule-time-separator">-</span>
-                                                <input
-                                                    type="time"
-                                                    value={dayData.to}
-                                                    className="schedule-time-input"
-                                                    onChange={(e) =>
-                                                        updateScheduleTime(nombre, "to", e.target.value)
-                                                    }
-                                                />
+                        {selectedSede && (
+                            <div className="schedule-days">
+                                {DIAS.map(({ nombre }) => {
+                                    const dayData = getSedeSchedule(selectedSede)[nombre];
+                                    return (
+                                        <div
+                                            key={nombre}
+                                            className={`schedule-day-item ${!dayData.enabled ? "schedule-day-disabled" : ""}`}
+                                        >
+                                            <div className="schedule-day-top">
+                                                <div className="schedule-day-left">
+                                                    {isEditingSchedule && (
+                                                        <label className="schedule-switch">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={dayData.enabled}
+                                                                onChange={() => toggleDaySchedule(nombre)}
+                                                            />
+                                                            <span className="schedule-slider"></span>
+                                                        </label>
+                                                    )}
+                                                    <span className="schedule-day-name">{nombre}</span>
+                                                </div>
+                                                {!dayData.enabled && (
+                                                    <span className="schedule-unavailable">No disponible</span>
+                                                )}
                                             </div>
-                                        ) : (
-                                            <div className="schedule-time-display">
-                                                <span className="schedule-time-label">Horario:</span>
-                                                <span className="schedule-time-value">
-                                                    {dayData.from} - {dayData.to} hs
-                                                </span>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
+
+                                            {dayData.enabled && (
+                                                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+                                                    {dayData.intervals.map((interval, idx) => (
+                                                        <div key={idx} className="schedule-time-row">
+                                                            <span className="schedule-time-label">
+                                                                {dayData.intervals.length > 1
+                                                                    ? idx === 0 ? "Mañana:" : "Tarde:"
+                                                                    : "Horario:"}
+                                                            </span>
+                                                            {isEditingSchedule ? (
+                                                                <>
+                                                                    <input
+                                                                        type="time"
+                                                                        value={interval.from}
+                                                                        className="schedule-time-input"
+                                                                        min={idx > 0 ? addHour(dayData.intervals[0].to) : undefined}
+                                                                        onChange={(e) => updateInterval(nombre, idx, "from", e.target.value)}
+                                                                    />
+                                                                    <span className="schedule-time-separator">-</span>
+                                                                    <input
+                                                                        type="time"
+                                                                        value={interval.to}
+                                                                        className="schedule-time-input"
+                                                                        min={addMinute(interval.from)}
+                                                                        onChange={(e) => updateInterval(nombre, idx, "to", e.target.value)}
+                                                                    />
+                                                                    {idx > 0 && (
+                                                                        <button
+                                                                            onClick={() => removeInterval(nombre, idx)}
+                                                                            style={{
+                                                                                marginLeft: 4,
+                                                                                background: "none",
+                                                                                border: "none",
+                                                                                color: "#dc2626",
+                                                                                cursor: "pointer",
+                                                                                fontSize: 16,
+                                                                                lineHeight: 1,
+                                                                                padding: "0 2px",
+                                                                            }}
+                                                                            title="Eliminar turno"
+                                                                        >
+                                                                            ✕
+                                                                        </button>
+                                                                    )}
+                                                                </>
+                                                            ) : (
+                                                                <span className="schedule-time-value">
+                                                                    {interval.from} - {interval.to} hs
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+
+                                                    {isEditingSchedule && dayData.intervals.length < 2 && (
+                                                        <button
+                                                            onClick={() => addInterval(nombre)}
+                                                            style={{
+                                                                alignSelf: "flex-start",
+                                                                marginTop: 2,
+                                                                padding: "3px 10px",
+                                                                borderRadius: 8,
+                                                                border: "1.5px dashed #2f5cf5",
+                                                                background: "none",
+                                                                color: "#2f5cf5",
+                                                                fontSize: 12,
+                                                                fontWeight: 600,
+                                                                cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            + Agregar turno tarde
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
                             </div>
-                        );
-                    })}
-                </div>
+                        )}
+                    </>
+                )}
             </div>
 
             <div className="dashboard-card">
