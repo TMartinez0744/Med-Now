@@ -40,6 +40,16 @@ const register = async (req, res) => {
 
         if (tipo_usuario === 'medico') {
             await supabase.from('medicos').insert([{ id: userId, especialidades: [], sedes: [], recibir_turnos: true }]);
+            
+            // Insertar disponibilidad por defecto (Lunes a Viernes, de 08:00 a 18:00)
+            const defaultDisponibilidad = [1, 2, 3, 4, 5].map(dia => ({
+                id: crypto.randomUUID(),
+                medico_id: userId,
+                dia_semana: dia,
+                hora_inicio: '08:00:00',
+                hora_fin: '18:00:00'
+            }));
+            await supabase.from('disponibilidad').insert(defaultDisponibilidad);
         } else if (tipo_usuario === 'paciente') {
             await supabase.from('pacientes').insert([{ id: userId, obra_social: null }]);
         }
