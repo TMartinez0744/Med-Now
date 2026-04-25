@@ -3,8 +3,8 @@ import Navbar from "../components/Navbar";
 import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
 import { supabase } from "../lib/supabase";
-
-const API = "http://localhost:3000/api";
+import { apiFetch } from "../lib/api";
+import { showToast } from "../lib/toast";
 
 interface TurnoPaciente {
     id: string;
@@ -88,7 +88,7 @@ function PatientDashboardPage() {
             setDisplayName(`${capitalize(draftName.trim())} ${capitalize(draftLastName.trim())}`);
             setShowEditProfileModal(false);
         } else {
-            alert("Error al guardar: " + error.message);
+            showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
         }
         setSavingName(false);
     };
@@ -150,7 +150,7 @@ function PatientDashboardPage() {
     useEffect(() => {
         if (!patientData.id) return;
         setLoadingTurnos(true);
-        fetch(`${API}/pacientes/${patientData.id}/turnos`)
+        apiFetch(`/api/pacientes/${patientData.id}/turnos`)
             .then((r) => r.json())
             .then(({ data }) => setProximoTurno((data ?? [])[0] ?? null))
             .catch(console.error)
@@ -160,6 +160,7 @@ function PatientDashboardPage() {
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("patientData");
+        localStorage.removeItem("token");
         navigate("/");
     };
 
@@ -200,7 +201,7 @@ function PatientDashboardPage() {
 
         if (!patientData.id) {
             console.error("saveHistorial: patientData.id está vacío", patientData);
-            alert("Error: no se encontró tu ID de paciente. Volvé a iniciar sesión.");
+            showToast("Sesión inválida. Por favor volvé a iniciar sesión.");
             return;
         }
 
@@ -217,10 +218,10 @@ function PatientDashboardPage() {
 
         if (error) {
             console.error("Error guardando historial:", error);
-            alert("Error al guardar: " + error.message);
+            showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
         } else if (!updated || updated.length === 0) {
             console.error("UPDATE sin efecto — el ID no coincide con ningún paciente:", patientData.id);
-            alert("Error: el ID de paciente no se encontró en la base de datos. Volvé a iniciar sesión.");
+            showToast("Sesión inválida. Por favor volvé a iniciar sesión.");
         } else {
             console.log("Historial guardado correctamente ✅", updated);
         }

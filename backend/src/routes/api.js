@@ -3,6 +3,9 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const disponibilidadController = require('../controllers/disponibilidadController');
 const turnosController = require('../controllers/turnosController');
+const { verifyToken } = require('../middleware/authMiddleware');
+
+router.use(verifyToken);
 
 // Rutas REST clásicas de ejemplo para interactuar con Supabase en lugar de MongoDB
 

@@ -8,20 +8,29 @@ import DoctorRegisterPage from "./pages/DoctorRegisterPage";
 import PatientDashboardPage from "./pages/PatientDashboardPage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
 import TurnosPage from "./pages/TurnosPage";
+import ProtectedRoute from "./components/ProtectedRoute";
+import Toaster from "./components/Toaster";
 
 
 function App() {
   return (
     <BrowserRouter>
+      <Toaster />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login/patient" element={<PatientLoginPage />} />
         <Route path="/login/doctor" element={<DoctorLoginPage />} />
         <Route path="/register/patient" element={<PatientRegisterPage />} />
         <Route path="/register/doctor" element={<DoctorRegisterPage />} />
-        <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
-        <Route path="/doctor/dashboard" element={<DoctorDashboardPage />} />
-        <Route path="/patient/turnos" element={<TurnosPage />} />
+        <Route path="/patient/dashboard" element={
+          <ProtectedRoute role="patient"><PatientDashboardPage /></ProtectedRoute>
+        } />
+        <Route path="/doctor/dashboard" element={
+          <ProtectedRoute role="doctor"><DoctorDashboardPage /></ProtectedRoute>
+        } />
+        <Route path="/patient/turnos" element={
+          <ProtectedRoute role="patient"><TurnosPage /></ProtectedRoute>
+        } />
       </Routes>
     </BrowserRouter>
   );

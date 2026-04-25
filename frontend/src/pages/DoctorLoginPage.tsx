@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { showToast } from "../lib/toast";
 
 function DoctorLoginPage() {
     const navigate = useNavigate();
@@ -15,12 +16,12 @@ function DoctorLoginPage() {
         const fullLicense = `${licenseType} ${licenseNumber.trim()}`;
 
         if (!licenseNumber.trim() || !password) {
-            alert("Completá todos los campos");
+            showToast("Completá todos los campos");
             return;
         }
 
         if (!passwordRegex.test(password)) {
-            alert("La contraseña debe tener al menos 8 caracteres, una letra y un número");
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número");
             return;
         }
 
@@ -34,14 +35,15 @@ function DoctorLoginPage() {
             const result = await response.json();
 
             if (!response.ok) {
-                alert("Error: " + result.message);
+                showToast("Error: " + result.message);
                 return;
             }
 
             // Limpiar sesión previa de paciente
             localStorage.removeItem("patientData");
 
-            // Guardar datos del médico en localStorage
+            // Guardar token y datos del médico
+            localStorage.setItem("token", result.token);
             localStorage.setItem("user", fullLicense);
             localStorage.setItem(
                 "doctorData",
@@ -57,7 +59,7 @@ function DoctorLoginPage() {
             navigate("/doctor/dashboard");
         } catch (error) {
             console.error(error);
-            alert("Error al conectar con el backend");
+            showToast("Algo salió mal. Intentá de nuevo.");
         }
     };
 

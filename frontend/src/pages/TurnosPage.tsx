@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
-
-const API = "http://localhost:3000/api";
+import { apiFetch } from "../lib/api";
+import { showToast } from "../lib/toast";
 
 const DIAS_SEMANA = [
     { label: "Dom", index: 0 },
@@ -36,7 +36,8 @@ type Medico = {
 
 type ReservaPendiente = {
     medico: Medico;
-    slot: Slot;
+    dia_semana: number;
+    slots: Slot[];
 };
 
 // Genera las próximas N fechas que caigan en el día de la semana indicado
@@ -61,13 +62,17 @@ function formatFecha(date: Date): string {
     });
 }
 
-function getHorasEnRango(horaInicio: string, horaFin: string) {
+function getHorasDesdeSlots(slots: Slot[]): string[] {
+    const seen = new Set<string>();
     const horas: string[] = [];
-    let [h, m] = horaInicio.split(":").map(Number);
-    let hFin = Number(horaFin.split(":")[0]);
-    while (h < hFin) {
-        horas.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-        h++;
+    for (const slot of slots) {
+        let [h, m] = slot.hora_inicio.split(":").map(Number);
+        const hFin = Number(slot.hora_fin.split(":")[0]);
+        while (h < hFin) {
+            const label = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            if (!seen.has(label)) { seen.add(label); horas.push(label); }
+            h++;
+        }
     }
     return horas;
 }
@@ -132,8 +137,8 @@ function TurnosPage() {
         setLoadingTurnos(true);
         try {
             const [rProximos, rHistorial] = await Promise.all([
-                fetch(`${API}/pacientes/${pacienteId}/turnos`),
-                fetch(`${API}/pacientes/${pacienteId}/turnos/historial`),
+                apiFetch(`/api/pacientes/${pacienteId}/turnos`),
+                apiFetch(`/api/pacientes/${pacienteId}/turnos/historial`),
             ]);
             const jProximos = await rProximos.json();
             const jHistorial = await rHistorial.json();
@@ -149,7 +154,7 @@ function TurnosPage() {
     const cancelarTurno = async (id: string) => {
         setCancelandoId(id);
         try {
-            const r = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            const r = await apiFetch(`/api/turnos/${id}/cancelar`, { method: "PATCH" });
             if (r.ok) {
                 await fetchTurnosPaciente();
             }
@@ -169,7 +174,7 @@ function TurnosPage() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const rMedicos = await fetch(`${API}/medicos`);
+                const rMedicos = await apiFetch(`/api/medicos`);
                 const jMedicos = await rMedicos.json();
                 const listaMedicos: Array<{
                     id: string; especialidades: string[]; sedes: string[];
@@ -180,7 +185,7 @@ function TurnosPage() {
                     listaMedicos
                         .filter((m) => m.recibir_turnos)
                         .map(async (m) => {
-                            const rSlots = await fetch(`${API}/medicos/${m.id}/disponibilidad`);
+                            const rSlots = await apiFetch(`/api/medicos/${m.id}/disponibilidad`);
                             const jSlots = await rSlots.json();
                             return {
                                 id: m.id,
@@ -216,15 +221,15 @@ function TurnosPage() {
         return pasaEsp && pasaDia;
     });
 
-    const abrirModal = async (medico: Medico, slot: Slot) => {
-        setReserva({ medico, slot });
+    const abrirModal = async (medico: Medico, dia_semana: number, slots: Slot[]) => {
+        setReserva({ medico, dia_semana, slots });
         setFechaSeleccionada(null);
         setHoraSeleccionada(null);
         setReservaExitosa(false);
         setFechasOcupadas([]);
 
         try {
-            const r = await fetch(`${API}/medicos/${medico.id}/turnos`);
+            const r = await apiFetch(`/api/medicos/${medico.id}/turnos`);
             const j = await r.json();
             const ocupados = (j.data || []).map((t: any) => new Date(t.fecha_hora).toISOString());
             setTurnosOcupados(ocupados);
@@ -248,7 +253,7 @@ function TurnosPage() {
         if (!reserva || !fechaSeleccionada || !horaSeleccionada) return;
 
         if (!pacienteId) {
-            alert("Necesitás iniciar sesión como paciente para reservar un turno.");
+            showToast("Necesitás iniciar sesión como paciente para reservar un turno.");
             return;
         }
 
@@ -256,7 +261,7 @@ function TurnosPage() {
         try {
             const fecha_hora = buildFechaHora(fechaSeleccionada, horaSeleccionada);
 
-            const response = await fetch(`${API}/turnos`, {
+            const response = await apiFetch(`/api/turnos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -272,12 +277,12 @@ function TurnosPage() {
                 // Turno ya reservado: marcamos esa fecha/hora como ocupada pero no cerramos el modal
                 setFechasOcupadas((prev) => [...prev, fecha_hora]);
                 setHoraSeleccionada(null);
-                alert("Ese horario ya fue reservado. Por favor elegí otra fecha o médico.");
+                showToast("Ese horario ya fue reservado. Por favor elegí otra fecha o médico.");
                 return;
             }
 
             if (!response.ok) {
-                alert("Error al reservar: " + result.message);
+                showToast("No se pudo reservar el turno. Intentá de nuevo.");
                 return;
             }
 
@@ -285,7 +290,7 @@ function TurnosPage() {
             fetchTurnosPaciente();
         } catch (err) {
             console.error(err);
-            alert("Error al conectar con el servidor.");
+            showToast("Algo salió mal. Intentá de nuevo.");
         } finally {
             setReservando(false);
         }
@@ -560,9 +565,16 @@ function TurnosPage() {
                                 </div>
 
                                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                    {slotsVisibles.map((slot) => (
+                                    {Object.entries(
+                                        slotsVisibles.reduce((acc, s) => {
+                                            (acc[s.dia_semana] = acc[s.dia_semana] || []).push(s);
+                                            return acc;
+                                        }, {} as Record<number, Slot[]>)
+                                    )
+                                    .sort(([a], [b]) => Number(a) - Number(b))
+                                    .map(([dia, diaSlots]) => (
                                         <div
-                                            key={slot.id}
+                                            key={dia}
                                             style={{
                                                 display: "flex", alignItems: "center",
                                                 justifyContent: "space-between",
@@ -572,19 +584,19 @@ function TurnosPage() {
                                         >
                                             <div>
                                                 <span style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
-                                                    {DIA_NOMBRE[slot.dia_semana]}
+                                                    {DIA_NOMBRE[Number(dia)]}
                                                 </span>
-                                                <span style={{ fontSize: 14, color: "#6b7280", marginLeft: 8 }}>
-                                                    {slot.hora_inicio.slice(0, 5)} – {slot.hora_fin.slice(0, 5)} hs
+                                                <span style={{ fontSize: 13, color: "#6b7280", marginLeft: 8 }}>
+                                                    {[...new Map(diaSlots.map(s => [`${s.hora_inicio}${s.hora_fin}`, s])).values()]
+                                                        .map(s => `${s.hora_inicio.slice(0,5)}–${s.hora_fin.slice(0,5)}`).join("  /  ")} hs
                                                 </span>
                                             </div>
                                             <button
-                                                onClick={() => abrirModal(medico, slot)}
+                                                onClick={() => abrirModal(medico, Number(dia), diaSlots)}
                                                 style={{
                                                     padding: "7px 16px", borderRadius: 10, border: "none",
                                                     background: "#2f5cf5", color: "white",
                                                     fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                                    transition: "0.15s ease",
                                                 }}
                                             >
                                                 Reservar
@@ -662,7 +674,8 @@ function TurnosPage() {
                                         {reserva.medico.nombre_apellido}
                                     </p>
                                     <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
-                                        {DIA_NOMBRE[reserva.slot.dia_semana]} · {reserva.slot.hora_inicio.slice(0, 5)} – {reserva.slot.hora_fin.slice(0, 5)} hs
+                                        {DIA_NOMBRE[reserva.dia_semana]} · {[...new Map(reserva.slots.map(s => [`${s.hora_inicio}${s.hora_fin}`, s])).values()]
+                                                .map(s => `${s.hora_inicio.slice(0,5)}–${s.hora_fin.slice(0,5)}`).join("  /  ")} hs
                                     </p>
                                 </div>
 
@@ -671,7 +684,7 @@ function TurnosPage() {
                                     Próximas fechas disponibles
                                 </p>
                                 <div style={{ display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden", paddingBottom: 10, marginBottom: 24, paddingLeft: 4, paddingRight: 4 }}>
-                                    {proximasFechas(reserva.slot.dia_semana).map((fecha) => {
+                                    {proximasFechas(reserva.dia_semana).map((fecha) => {
                                         const seleccionada = fechaSeleccionada?.toDateString() === fecha.toDateString();
                                         return (
                                             <button
@@ -701,7 +714,7 @@ function TurnosPage() {
                                             Horarios disponibles
                                         </p>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
-                                            {getHorasEnRango(reserva.slot.hora_inicio, reserva.slot.hora_fin).map((hora) => {
+                                            {getHorasDesdeSlots(reserva.slots).map((hora) => {
                                                 const iso = buildFechaHora(fechaSeleccionada, hora);
                                                 const ocupada = turnosOcupados.includes(iso) || fechasOcupadas.includes(iso);
                                                 const seleccionada = horaSeleccionada === hora;
