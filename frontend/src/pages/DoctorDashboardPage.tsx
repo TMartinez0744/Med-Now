@@ -371,8 +371,8 @@ function DoctorDashboardPage() {
         const currentSchedule = getSedeSchedule(selectedSede);
         try {
             // 1. Borrar slots de esta sede
-            await fetch(
-                `${API}/medicos/${medicoId}/disponibilidad?sede=${encodeURIComponent(selectedSede)}`,
+            await apiFetch(
+                `/api/medicos/${medicoId}/disponibilidad?sede=${encodeURIComponent(selectedSede)}`,
                 { method: "DELETE" }
             );
 
