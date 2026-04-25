@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
-
-const API = "http://localhost:3000/api";
+import { apiFetch } from "../lib/api";
 
 
 const MOCK_SLOTS = ["08:30", "09:00", "09:30", "10:00", "10:30", "11:00", "14:00", "14:30", "15:00", "15:30"];
@@ -63,7 +62,7 @@ function PatientTurnosPage() {
 
     useEffect(() => {
         setLoadingDoctors(true);
-        fetch(`${API}/medicos`)
+        apiFetch(`/api/medicos`)
             .then((r) => r.json())
             .then(({ data }) => {
                 const mapped: Doctor[] = (data ?? []).map((d: any) => ({

@@ -1,6 +1,7 @@
 const supabase = require('../config/supabase');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 
 const register = async (req, res) => {
     const { dni, password, nombre_apellido, tipo_usuario } = req.body;
@@ -106,11 +107,17 @@ const login = async (req, res) => {
             medicoData = medico;
         }
 
-        // Remover password antes de enviar al front
         delete profile.password;
+
+        const token = jwt.sign(
+            { id: profile.id, tipo_usuario: profile.tipo_usuario },
+            process.env.JWT_SECRET,
+            { expiresIn: '8h' }
+        );
 
         return res.status(200).json({
             message: 'Login correcto',
+            token,
             user: {
                 ...profile,
                 ...(medicoData && { medico: medicoData }),

@@ -6,8 +6,8 @@ import locationIcon from "../assets/location_on.svg";
 import clockIcon from "../assets/access_time.svg";
 import React, { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
-
-const API = "http://localhost:3000/api";
+import { apiFetch } from "../lib/api";
+import { showToast } from "../lib/toast";
 
 const DIAS = [
     { nombre: "Lunes",     index: 1 },
@@ -98,7 +98,7 @@ function DoctorDashboardPage() {
             setDisplayName(buildDoctorName(draftNombre.trim()));
             setShowEditProfileModal(false);
         } else {
-            alert("Error al guardar: " + error.message);
+            showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
         }
         setSavingName(false);
     };
@@ -126,11 +126,11 @@ function DoctorDashboardPage() {
         if (!confirm("¿Cancelar este turno?")) return;
         setCelandoId(id);
         try {
-            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            const res = await apiFetch(`/api/turnos/${id}/cancelar`, { method: "PATCH" });
             if (res.ok) {
                 setTurnos((prev) => prev.filter((t) => t.id !== id));
             } else {
-                alert("Error al cancelar el turno.");
+                showToast("No se pudo cancelar el turno. Intentá de nuevo.");
             }
         } catch (err) {
             console.error(err);
@@ -144,7 +144,7 @@ function DoctorDashboardPage() {
         setSavingProfile(true);
         setProfileMsg(null);
         try {
-            const res = await fetch(`${API}/medicos/${medicoId}`, {
+            const res = await apiFetch(`/api/medicos/${medicoId}`, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ especialidades: specialties, sedes: hospitals }),
@@ -192,7 +192,7 @@ function DoctorDashboardPage() {
     useEffect(() => {
         if (!medicoId) return;
         setLoadingTurnos(true);
-        fetch(`${API}/medicos/${medicoId}/turnos`)
+        apiFetch(`/api/medicos/${medicoId}/turnos`)
             .then((r) => r.json())
             .then(({ data }) => setTurnos(data ?? []))
             .catch(console.error)
@@ -213,7 +213,7 @@ function DoctorDashboardPage() {
         if (!medicoId) return;
 
         setLoadingSchedule(true);
-        fetch(`${API}/medicos/${medicoId}/disponibilidad`)
+        apiFetch(`/api/medicos/${medicoId}/disponibilidad`)
             .then((r) => r.json())
             .then(({ data }: { data: SlotDB[] }) => {
                 console.log('[load disponibilidad]', data);
@@ -252,6 +252,7 @@ function DoctorDashboardPage() {
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("doctorData");
+        localStorage.removeItem("token");
         navigate("/");
     };
 
@@ -382,7 +383,7 @@ function DoctorDashboardPage() {
                 if (!day?.enabled) return;
                 day.intervals.forEach((interval) => {
                     creates.push(
-                        fetch(`${API}/medicos/${medicoId}/disponibilidad`, {
+                        apiFetch(`/api/medicos/${medicoId}/disponibilidad`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
