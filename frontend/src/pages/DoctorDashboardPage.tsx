@@ -8,6 +8,7 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+import FichaPaciente from "../components/FichaPaciente";
 
 const DIAS = [
     { nombre: "Lunes",     index: 1 },
@@ -121,6 +122,7 @@ function DoctorDashboardPage() {
     const [turnos, setTurnos] = useState<TurnoMedico[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
     const [cancelandoId, setCelandoId] = useState<string | null>(null);
+    const [fichaAbierta, setFichaAbierta] = useState<{ id: string; nombre: string } | null>(null);
 
     const cancelarTurno = async (id: string) => {
         if (!confirm("¿Cancelar este turno?")) return;
@@ -457,10 +459,15 @@ function DoctorDashboardPage() {
                                         alignItems: "center", gap: 12,
                                     }}
                                 >
-                                    <div>
-                                        <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                            {nombrePaciente}
-                                        </p>
+                                    <div style={{ flex: 1 }}>
+                                        <button
+                                            onClick={() => setFichaAbierta({ id: turno.paciente_id, nombre: nombrePaciente })}
+                                            style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", width: "100%" }}
+                                        >
+                                            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#2f5cf5", textDecoration: "underline dotted" }}>
+                                                {nombrePaciente}
+                                            </p>
+                                        </button>
                                         <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
                                             📅 {fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
                                             {" "}🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
@@ -773,6 +780,15 @@ function DoctorDashboardPage() {
             </div>
 
             <Navbar role="doctor" />
+
+            {/* ficha paciente */}
+            {fichaAbierta && (
+                <FichaPaciente
+                    pacienteId={fichaAbierta.id}
+                    nombrePaciente={fichaAbierta.nombre}
+                    onClose={() => setFichaAbierta(null)}
+                />
+            )}
 
             {/* modal editar perfil */}
             {showEditProfileModal && (
