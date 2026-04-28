@@ -10,12 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-<<<<<<< HEAD
     "@supabase/supabase-js": "^2.103.0",
-=======
-    "@supabase/supabase-js": "^2.100.1",
     "leaflet": "^1.9.4",
->>>>>>> 049a48f (add emergency and pharmacy map with mock data)
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-leaflet": "^5.0.0",
