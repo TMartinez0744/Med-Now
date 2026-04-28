@@ -15,7 +15,6 @@ function HomePage() {
                     <Link to="/login/patient" className="home-link">
                         <button className="home-button primary">Soy Paciente</button>
                     </Link>
-
                     <Link to="/login/doctor" className="home-link">
                         <button className="home-button secondary">Soy Médico</button>
                     </Link>

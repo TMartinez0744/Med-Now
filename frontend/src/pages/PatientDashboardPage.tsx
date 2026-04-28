@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import personIcon from "../assets/person.svg";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+
 
 interface TurnoPaciente {
     id: string;
@@ -485,12 +486,38 @@ function PatientDashboardPage() {
             {/* ── Card Configuración ── */}
             <div className="dashboard-card">
                 <h3>Configuración</h3>
-                <button className="dashboard-button" onClick={openEditProfile}>Editar Perfil</button>
-                <button className="dashboard-button" onClick={() => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswordModal(true); }}>Cambiar Contraseña</button>
+
+                <button className="dashboard-button" onClick={openEditProfile}>
+                    Editar Perfil
+                </button>
+
+                <button
+                    className="dashboard-button"
+                    onClick={() => {
+                        setCurrentPassword("");
+                        setNewPassword("");
+                        setConfirmPassword("");
+                        setShowPasswordModal(true);
+                    }}
+                >
+                    Cambiar Contraseña
+                </button>
+
                 <button className="dashboard-button">Notificaciones</button>
+
                 <button className="dashboard-button logout" onClick={handleLogout}>
                     Cerrar sesión
                 </button>
+            </div>
+
+            <div className="dashboard-card">
+                <h3>Funciones</h3>
+
+                <Link to="/mapa-emergencias" style={{ textDecoration: "none" }}>
+                    <button className="dashboard-button">
+                        Ver mapa de guardias y farmacias
+                    </button>
+                </Link>
             </div>
 
             <Navbar role="patient" />
