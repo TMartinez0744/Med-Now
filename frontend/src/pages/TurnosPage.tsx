@@ -33,12 +33,16 @@ type Medico = {
     especialidades: string[];
     sedes: string[];
     recibir_turnos: boolean;
+    duracion_turno: number;
+    obras_sociales: string[];
     slots: Slot[];
 };
 
 type ReservaPendiente = {
     medico: Medico;
-    slot: Slot;
+    dia_semana: number;
+    slots: Slot[];
+    sedesDelDia: string[];
 };
 
 // Genera las próximas N fechas que caigan en el día de la semana indicado
@@ -63,13 +67,19 @@ function formatFecha(date: Date): string {
     });
 }
 
-function getHorasEnRango(horaInicio: string, horaFin: string) {
+function getHorasDesdeSlots(slots: Slot[], duracion: number): string[] {
+    const seen = new Set<string>();
     const horas: string[] = [];
-    let [h, m] = horaInicio.split(":").map(Number);
-    let hFin = Number(horaFin.split(":")[0]);
-    while (h < hFin) {
-        horas.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-        h++;
+    for (const slot of slots) {
+        const [sh, sm] = slot.hora_inicio.split(":").map(Number);
+        const [eh, em] = slot.hora_fin.split(":").map(Number);
+        let cur = sh * 60 + sm;
+        const end = eh * 60 + em;
+        while (cur + duracion <= end) {
+            const label = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`;
+            if (!seen.has(label)) { seen.add(label); horas.push(label); }
+            cur += duracion;
+        }
     }
     return horas;
 }
@@ -113,6 +123,15 @@ function TurnosPage() {
     const [especialidadFiltro, setEspecialidadFiltro] = useState("");
     const [diaFiltro, setDiaFiltro] = useState<number | null>(null);
     const [todasEspecialidades, setTodasEspecialidades] = useState<string[]>([]);
+    const [obraSocialPaciente, setObraSocialPaciente] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!pacienteId) return;
+        apiFetch(`/api/pacientes/${pacienteId}/ficha`)
+            .then(r => r.json())
+            .then(({ data }) => setObraSocialPaciente(data?.obra_social ?? null))
+            .catch(() => {});
+    }, [pacienteId]);
 
     // Próximos y historial
     const [proximosTurnos, setProximosTurnos] = useState<TurnoBackend[]>([]);
@@ -124,6 +143,7 @@ function TurnosPage() {
     const [reserva, setReserva] = useState<ReservaPendiente | null>(null);
     const [fechaSeleccionada, setFechaSeleccionada] = useState<Date | null>(null);
     const [horaSeleccionada, setHoraSeleccionada] = useState<string | null>(null);
+    const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
     const [reservando, setReservando] = useState(false);
     const [reservaExitosa, setReservaExitosa] = useState(false);
     const [fechasOcupadas, setFechasOcupadas] = useState<string[]>([]);
@@ -134,8 +154,8 @@ function TurnosPage() {
         setLoadingTurnos(true);
         try {
             const [rProximos, rHistorial] = await Promise.all([
-                fetch(`${API}/pacientes/${pacienteId}/turnos`),
-                fetch(`${API}/pacientes/${pacienteId}/turnos/historial`),
+                apiFetch(`/api/pacientes/${pacienteId}/turnos`),
+                apiFetch(`/api/pacientes/${pacienteId}/turnos/historial`),
             ]);
             const jProximos = await rProximos.json();
             const jHistorial = await rHistorial.json();
@@ -151,7 +171,7 @@ function TurnosPage() {
     const cancelarTurno = async (id: string) => {
         setCancelandoId(id);
         try {
-            const r = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            const r = await apiFetch(`/api/turnos/${id}/cancelar`, { method: "PATCH" });
             if (r.ok) {
                 await fetchTurnosPaciente();
             }
@@ -184,13 +204,16 @@ function TurnosPage() {
                         .map(async (m) => {
                             const rSlots = await authFetch(`${API}/medicos/${m.id}/disponibilidad`);
                             const jSlots = await rSlots.json();
+                            const slots: Slot[] = jSlots.data ?? [];
                             return {
                                 id: m.id,
+                                obras_sociales: (m as any).obras_sociales ?? [],
                                 nombre_apellido: m.profiles?.nombre_apellido ?? "Médico",
                                 especialidades: m.especialidades ?? [],
                                 sedes: m.sedes ?? [],
                                 recibir_turnos: m.recibir_turnos,
-                                slots: jSlots.data ?? [],
+                                duracion_turno: slots[0]?.duracion_turno ?? 30,
+                                slots,
                             };
                         })
                 );
@@ -215,15 +238,21 @@ function TurnosPage() {
     const medicosFiltrados = medicos.filter((m) => {
         const pasaEsp = !especialidadFiltro || m.especialidades.includes(especialidadFiltro);
         const pasaDia = diaFiltro === null || m.slots.some((s) => s.dia_semana === diaFiltro);
-        return pasaEsp && pasaDia;
+        const pasaObra = !obraSocialPaciente
+            || m.obras_sociales.length === 0
+            || m.obras_sociales.includes(obraSocialPaciente);
+        return pasaEsp && pasaDia && pasaObra;
     });
 
-    const abrirModal = async (medico: Medico, slot: Slot) => {
-        setReserva({ medico, slot });
+    const abrirModal = async (medico: Medico, dia_semana: number, slots: Slot[]) => {
+        const sedesDelDia = [...new Set(slots.map(s => s.sede).filter(Boolean))] as string[];
+        setReserva({ medico, dia_semana, slots, sedesDelDia });
         setFechaSeleccionada(null);
         setHoraSeleccionada(null);
         setReservaExitosa(false);
         setFechasOcupadas([]);
+        // Si hay una sola sede la pre-seleccionamos
+        setSedeSeleccionada(sedesDelDia.length === 1 ? sedesDelDia[0] : null);
 
         try {
             const r = await authFetch(`${API}/medicos/${medico.id}/turnos`);
@@ -240,6 +269,7 @@ function TurnosPage() {
         setReserva(null);
         setFechaSeleccionada(null);
         setHoraSeleccionada(null);
+        setSedeSeleccionada(null);
         setReservando(false);
         setReservaExitosa(false);
         setFechasOcupadas([]);
@@ -250,7 +280,7 @@ function TurnosPage() {
         if (!reserva || !fechaSeleccionada || !horaSeleccionada) return;
 
         if (!pacienteId) {
-            alert("Necesitás iniciar sesión como paciente para reservar un turno.");
+            showToast("Necesitás iniciar sesión como paciente para reservar un turno.");
             return;
         }
 
@@ -274,12 +304,12 @@ function TurnosPage() {
                 // Turno ya reservado: marcamos esa fecha/hora como ocupada pero no cerramos el modal
                 setFechasOcupadas((prev) => [...prev, fecha_hora]);
                 setHoraSeleccionada(null);
-                alert("Ese horario ya fue reservado. Por favor elegí otra fecha o médico.");
+                showToast("Ese horario ya fue reservado. Por favor elegí otra fecha o médico.");
                 return;
             }
 
             if (!response.ok) {
-                alert("Error al reservar: " + result.message);
+                showToast("No se pudo reservar el turno. Intentá de nuevo.");
                 return;
             }
 
@@ -287,7 +317,7 @@ function TurnosPage() {
             fetchTurnosPaciente();
         } catch (err) {
             console.error(err);
-            alert("Error al conectar con el servidor.");
+            showToast("Algo salió mal. Intentá de nuevo.");
         } finally {
             setReservando(false);
         }
@@ -581,17 +611,6 @@ function TurnosPage() {
                                                     {slot.sede ? ` · ${slot.sede}` : ""}
                                                 </span>
                                             </div>
-                                            <button
-                                                onClick={() => abrirModal(medico, slot)}
-                                                style={{
-                                                    padding: "7px 16px", borderRadius: 10, border: "none",
-                                                    background: "#2f5cf5", color: "white",
-                                                    fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                                    transition: "0.15s ease",
-                                                }}
-                                            >
-                                                Reservar
-                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -657,10 +676,8 @@ function TurnosPage() {
                                     </button>
                                 </div>
 
-                                {/* Info del médico y slot */}
-                                <div style={{
-                                    background: "#f0f4ff", borderRadius: 14, padding: "14px 16px", marginBottom: 20,
-                                }}>
+                                {/* Info del médico */}
+                                <div style={{ background: "#f0f4ff", borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
                                     <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
                                         {reserva.medico.nombre_apellido}
                                     </p>
@@ -670,42 +687,77 @@ function TurnosPage() {
                                     </p>
                                 </div>
 
-                                {/* Fechas disponibles (próximas ocurrencias del día) */}
-                                <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
-                                    Próximas fechas disponibles
-                                </p>
-                                <div style={{ display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden", paddingBottom: 10, marginBottom: 24, paddingLeft: 4, paddingRight: 4 }}>
-                                    {proximasFechas(reserva.slot.dia_semana).map((fecha) => {
-                                        const seleccionada = fechaSeleccionada?.toDateString() === fecha.toDateString();
-                                        return (
-                                            <button
-                                                key={fecha.toISOString()}
-                                                onClick={() => { setFechaSeleccionada(fecha); setHoraSeleccionada(null); }}
-                                                style={{
-                                                    flexShrink: 0,
-                                                    padding: "12px 18px", borderRadius: 14, cursor: "pointer",
-                                                    border: seleccionada ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
-                                                    background: seleccionada ? "#eef3ff" : "white",
-                                                    color: seleccionada ? "#2f5cf5" : "#111827",
-                                                    fontWeight: seleccionada ? 700 : 500,
-                                                    fontSize: 15, textAlign: "center",
-                                                    transition: "0.15s ease",
-                                                    minWidth: 100
-                                                }}
-                                            >
-                                                {formatFecha(fecha)}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                
-                                {fechaSeleccionada && (
+                                {/* Selección de sede (si tiene más de una ese día) */}
+                                {reserva.sedesDelDia.length > 1 && (
+                                    <div style={{ marginBottom: 20 }}>
+                                        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
+                                            ¿En qué sede querés atenderte?
+                                        </p>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                            {reserva.sedesDelDia.map((sede) => (
+                                                <button
+                                                    key={sede}
+                                                    onClick={() => { setSedeSeleccionada(sede); setFechaSeleccionada(null); setHoraSeleccionada(null); }}
+                                                    style={{
+                                                        padding: "12px 16px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                                                        border: sedeSeleccionada === sede ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
+                                                        background: sedeSeleccionada === sede ? "#eef3ff" : "white",
+                                                        color: sedeSeleccionada === sede ? "#2f5cf5" : "#111827",
+                                                        fontWeight: sedeSeleccionada === sede ? 700 : 500,
+                                                        fontSize: 14, display: "flex", alignItems: "center", gap: 10,
+                                                    }}
+                                                >
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                                        <circle cx="12" cy="10" r="3" />
+                                                    </svg>
+                                                    {sede}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Fechas disponibles — solo si hay sede seleccionada */}
+                                {sedeSeleccionada && (
+                                    <>
+                                        <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
+                                            Próximas fechas disponibles
+                                        </p>
+                                        <div style={{ display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden", paddingBottom: 10, marginBottom: 24, paddingLeft: 4, paddingRight: 4 }}>
+                                            {proximasFechas(reserva.dia_semana).map((fecha) => {
+                                                const seleccionada = fechaSeleccionada?.toDateString() === fecha.toDateString();
+                                                return (
+                                                    <button
+                                                        key={fecha.toISOString()}
+                                                        onClick={() => { setFechaSeleccionada(fecha); setHoraSeleccionada(null); }}
+                                                        style={{
+                                                            flexShrink: 0,
+                                                            padding: "12px 18px", borderRadius: 14, cursor: "pointer",
+                                                            border: seleccionada ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
+                                                            background: seleccionada ? "#eef3ff" : "white",
+                                                            color: seleccionada ? "#2f5cf5" : "#111827",
+                                                            fontWeight: seleccionada ? 700 : 500,
+                                                            fontSize: 15, textAlign: "center",
+                                                            transition: "0.15s ease",
+                                                            minWidth: 100
+                                                        }}
+                                                    >
+                                                        {formatFecha(fecha)}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                )}
+
+                                {sedeSeleccionada && fechaSeleccionada && (
                                     <>
                                         <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
                                             Horarios disponibles
                                         </p>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
-                                            {getHorasEnRango(reserva.slot.hora_inicio, reserva.slot.hora_fin).map((hora) => {
+                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada), reserva.medico.duracion_turno).map((hora) => {
                                                 const iso = buildFechaHora(fechaSeleccionada, hora);
                                                 const ocupada = turnosOcupados.includes(iso) || fechasOcupadas.includes(iso);
                                                 const seleccionada = horaSeleccionada === hora;
@@ -715,7 +767,7 @@ function TurnosPage() {
                                                         onClick={() => !ocupada && setHoraSeleccionada(hora)}
                                                         disabled={ocupada}
                                                         style={{
-                                                            padding: "10px 18px", borderRadius: 12, 
+                                                            padding: "10px 18px", borderRadius: 12,
                                                             cursor: ocupada ? "not-allowed" : "pointer",
                                                             border: seleccionada ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
                                                             background: ocupada ? "#f3f4f6" : seleccionada ? "#eef3ff" : "white",
@@ -737,12 +789,12 @@ function TurnosPage() {
 
                                 <button
                                     onClick={confirmarReserva}
-                                    disabled={!fechaSeleccionada || !horaSeleccionada || reservando}
+                                    disabled={!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando}
                                     className="auth-button"
                                     style={{
                                         margin: 0,
-                                        opacity: (!fechaSeleccionada || !horaSeleccionada || reservando) ? 0.5 : 1,
-                                        cursor: (!fechaSeleccionada || !horaSeleccionada || reservando) ? "not-allowed" : "pointer",
+                                        opacity: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? 0.5 : 1,
+                                        cursor: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? "not-allowed" : "pointer",
                                     }}
                                 >
                                     {reservando ? "Reservando..." : "Confirmar turno"}

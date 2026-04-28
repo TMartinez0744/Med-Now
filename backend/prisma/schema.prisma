@@ -69,6 +69,7 @@ model disponibilidad {
   dia_semana  Int
   hora_inicio DateTime @db.Time(6)
   hora_fin    DateTime @db.Time(6)
+  sede        String?
 
   medico      medicos  @relation(fields: [medico_id], references: [id], onDelete: Cascade)
 }

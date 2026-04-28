@@ -15,6 +15,7 @@ import MapPage from "./pages/MapPage";
 function App() {
   return (
     <BrowserRouter>
+      <Toaster />
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/login/patient" element={<PatientLoginPage />} />

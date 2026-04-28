@@ -1,13 +1,12 @@
-const supabase = require('../config/supabase');
+const supabaseSedes = require('../config/supabaseSedes');
 
-// 0=Domingo, 1=Lunes, ..., 6=Sábado
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
 class DisponibilidadService {
 
     async getByMedico(medicoId) {
-        const { data, error } = await supabase
-            .from('disponibilidad')
+        const { data, error } = await supabaseSedes
+            .from('disponibilidad_sedes')
             .select('*')
             .eq('medico_id', medicoId)
             .order('dia_semana', { ascending: true })
@@ -43,8 +42,8 @@ class DisponibilidadService {
     }
 
     async delete(id) {
-        const { error } = await supabase
-            .from('disponibilidad')
+        const { error } = await supabaseSedes
+            .from('disponibilidad_sedes')
             .delete()
             .eq('id', id);
 
@@ -52,12 +51,15 @@ class DisponibilidadService {
         return { deleted: true };
     }
 
-    async deleteAllByMedico(medicoId) {
-        const { data, error } = await supabase
-            .from('disponibilidad')
+    async deleteAllByMedico(medicoId, sede = null) {
+        let query = supabaseSedes
+            .from('disponibilidad_sedes')
             .delete()
-            .eq('medico_id', medicoId)
-            .select();
+            .eq('medico_id', medicoId);
+
+        if (sede) query = query.eq('sede', sede);
+
+        const { data, error } = await query.select();
 
         if (error) throw error;
         return { count: data.length };

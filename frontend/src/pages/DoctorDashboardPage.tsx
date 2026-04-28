@@ -68,9 +68,7 @@ type SlotDB = {
 
 type DaySchedule = {
     enabled: boolean;
-    from: string;
-    to: string;
-    slotId: string | null;
+    intervals: Interval[];
 };
 
 type TurnoMedico = {
@@ -99,12 +97,39 @@ function DoctorDashboardPage() {
     const capitalize = (text: string) =>
         text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 
-    const rawName = doctorData.nombre_apellido ?? "";
-    const doctorName = rawName
-        ? rawName.match(/^Dr[a]?\./i) ? rawName : `Dr. ${rawName}`
-        : doctorData.licenseNumber
-        ? `Dr. Matrícula ${doctorData.licenseNumber}`
-        : "Dr. Usuario";
+    const buildDoctorName = (raw: string) =>
+        raw
+            ? raw.match(/^Dr[a]?\./i) ? raw : `Dr. ${raw}`
+            : doctorData.licenseNumber
+            ? `Dr. Matrícula ${doctorData.licenseNumber}`
+            : "Dr. Usuario";
+
+    const [displayName, setDisplayName] = useState(buildDoctorName(doctorData.nombre_apellido ?? ""));
+    const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+    const [draftNombre, setDraftNombre] = useState(doctorData.nombre_apellido ?? "");
+    const [savingName, setSavingName] = useState(false);
+
+    const saveProfileName = async () => {
+        if (!draftNombre.trim()) return;
+        setSavingName(true);
+        try {
+            const res = await apiFetch(`/api/profiles/${medicoId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ nombre_apellido: draftNombre.trim() }),
+            });
+            if (res.ok) {
+                const updated = { ...doctorData, nombre_apellido: draftNombre.trim() };
+                localStorage.setItem("doctorData", JSON.stringify(updated));
+                setDisplayName(buildDoctorName(draftNombre.trim()));
+                setShowEditProfileModal(false);
+            } else {
+                showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+            }
+        } catch {
+            showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+        }
+        setSavingName(false);
+    };
 
     const doctorLicense = doctorData.licenseNumber
         ? `Matrícula: ${doctorData.licenseNumber}`
@@ -116,6 +141,14 @@ function DoctorDashboardPage() {
     const [hospitals, setHospitals] = useState<string[]>(
         doctorData.sedes ?? []
     );
+    const [obrasSociales, setObrasSociales] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (!medicoId) return;
+        apiFetch(`/api/medicos/${medicoId}/obras-sociales`)
+            .then(r => r.json())
+            .then(({ data }) => setObrasSociales(data ?? []));
+    }, [medicoId]);
 
     const [savingProfile, setSavingProfile] = useState(false);
     const [profileMsg, setProfileMsg] = useState<string | null>(null);
@@ -125,6 +158,7 @@ function DoctorDashboardPage() {
     const [turnos, setTurnos] = useState<TurnoMedico[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
     const [cancelandoId, setCelandoId] = useState<string | null>(null);
+    const [fichaAbierta, setFichaAbierta] = useState<{ id: string; nombre: string } | null>(null);
 
     // Modal de Ficha Médica
     const [showPatientModal, setShowPatientModal] = useState(false);
@@ -179,7 +213,7 @@ function DoctorDashboardPage() {
             if (res.ok) {
                 setTurnos((prev) => prev.filter((t) => t.id !== id));
             } else {
-                alert("Error al cancelar el turno.");
+                showToast("No se pudo cancelar el turno. Intentá de nuevo.");
             }
         } catch (err) {
             console.error(err);
@@ -199,7 +233,7 @@ function DoctorDashboardPage() {
                 body: JSON.stringify({ especialidades: specialties, sedes: hospitals }),
             });
             const data = await res.json();
-            if (data.success) {
+            if (data.success && resObras.ok) {
                 setProfileMsg("✅ Cambios guardados correctamente.");
                 const updatedDoctorData = { ...doctorData, especialidades: specialties, sedes: hospitals };
                 localStorage.setItem("doctorData", JSON.stringify(updatedDoctorData));
@@ -215,10 +249,14 @@ function DoctorDashboardPage() {
         }
     };
 
+    const [duracionTurno, setDuracionTurno] = useState<number>(30);
     const [isEditingSchedule, setIsEditingSchedule] = useState(false);
     const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [savingSchedule, setSavingSchedule] = useState(false);
     const [scheduleMsg, setScheduleMsg] = useState<string | null>(null);
+    const [selectedSede, setSelectedSede] = useState<string | null>(
+        doctorData.sedes?.[0] ?? null
+    );
 
     const [activeSede, setActiveSede] = useState<string>("");
 
@@ -226,7 +264,10 @@ function DoctorDashboardPage() {
         Object.fromEntries(
             DIAS.map(({ nombre }) => [
                 nombre,
-                { enabled: !["Sábado", "Domingo"].includes(nombre), from: "08:00", to: "18:00", slotId: null },
+                {
+                    enabled: !["Sábado", "Domingo"].includes(nombre),
+                    intervals: [{ from: "08:00", to: "18:00", slotId: null }],
+                },
             ])
         );
 
@@ -246,6 +287,15 @@ function DoctorDashboardPage() {
             .catch(console.error)
             .finally(() => setLoadingTurnos(false));
     }, [medicoId, viewMode]);
+
+    // Cuando cambian las sedes, asegurar que selectedSede sea válida
+    useEffect(() => {
+        setSelectedSede((prev) => {
+            if (hospitals.length === 0) return null;
+            if (prev && hospitals.includes(prev)) return prev;
+            return hospitals[0];
+        });
+    }, [hospitals]);
 
     // Cargar disponibilidad desde la API al montar
     useEffect(() => {
@@ -305,7 +355,38 @@ function DoctorDashboardPage() {
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("doctorData");
+        localStorage.removeItem("token");
         navigate("/");
+    };
+
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [savingPassword, setSavingPassword] = useState(false);
+
+    const changePassword = async () => {
+        if (!currentPassword || !newPassword) { showToast("Completá todos los campos"); return; }
+        if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número"); return;
+        }
+        if (newPassword !== confirmPassword) { showToast("Las contraseñas no coinciden"); return; }
+        setSavingPassword(true);
+        try {
+            const res = await apiFetch("/api/auth/change-password", {
+                method: "POST",
+                body: JSON.stringify({ currentPassword, newPassword }),
+            });
+            const json = await res.json();
+            if (res.ok) {
+                showToast("Contraseña actualizada", "success");
+                setShowPasswordModal(false);
+                setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+            } else {
+                showToast(json.message ?? "Error al cambiar la contraseña");
+            }
+        } catch { showToast("Error al cambiar la contraseña"); }
+        setSavingPassword(false);
     };
 
     const toggleSelection = (
@@ -315,6 +396,17 @@ function DoctorDashboardPage() {
     ) => {
         setList(list.includes(value) ? list.filter((i) => i !== value) : [...list, value]);
     };
+
+    const getSedeSchedule = (sede: string): Record<string, DaySchedule> =>
+        schedulesBySede[sede] ?? defaultSedeSchedule();
+
+    const addMinutes = (time: string, mins: number): string => {
+        const [h, m] = time.split(":").map(Number);
+        const total = h * 60 + m + mins;
+        return `${String(Math.floor(total / 60) % 24).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+    };
+    const addMinute = (time: string) => addMinutes(time, 1);
+    const addHour  = (time: string) => addMinutes(time, 60);
 
     const toggleDaySchedule = (day: string) => {
         if (!activeSede) return;
@@ -338,14 +430,55 @@ function DoctorDashboardPage() {
         }));
     };
 
-    // Guardar horario: borra todos los slots y los recrea según el estado actual
+    const addInterval = (day: string) => {
+        if (!selectedSede) return;
+        setSchedulesBySede((prev) => {
+            const sedeSchedule = prev[selectedSede] ?? defaultSedeSchedule();
+            const dayData = sedeSchedule[day];
+            if (dayData.intervals.length >= 2) return prev;
+            return {
+                ...prev,
+                [selectedSede]: {
+                    ...sedeSchedule,
+                    [day]: {
+                        ...dayData,
+                        intervals: (() => {
+                const morningEnd = dayData.intervals[0]?.to ?? "13:00";
+                const defaultFrom = addHour(morningEnd) >= "15:00" ? addHour(morningEnd) : "15:00";
+                const defaultTo = defaultFrom >= "18:00" ? addHour(defaultFrom) : "18:00";
+                return [...dayData.intervals, { from: defaultFrom, to: defaultTo, slotId: null }];
+            })(),
+                    },
+                },
+            };
+        });
+    };
+
+    const removeInterval = (day: string, idx: number) => {
+        if (!selectedSede) return;
+        setSchedulesBySede((prev) => {
+            const sedeSchedule = prev[selectedSede] ?? defaultSedeSchedule();
+            const dayData = sedeSchedule[day];
+            const newIntervals = dayData.intervals.filter((_, i) => i !== idx);
+            return {
+                ...prev,
+                [selectedSede]: {
+                    ...sedeSchedule,
+                    [day]: {
+                        ...dayData,
+                        intervals: newIntervals.length > 0 ? newIntervals : [{ from: "08:00", to: "18:00", slotId: null }],
+                    },
+                },
+            };
+        });
+    };
+
+    // Guardar horario de la sede seleccionada
     const handleSaveSchedule = async () => {
-        if (!medicoId) {
-            alert("No se encontró el ID del médico. Volvé a iniciar sesión.");
-            return;
-        }
+        if (!medicoId || !selectedSede) return;
         setSavingSchedule(true);
         setScheduleMsg(null);
+        const currentSchedule = getSedeSchedule(selectedSede);
         try {
             // 1. Borrar todos los slots actuales
             await authFetch(`${API}/medicos/${medicoId}/disponibilidad`, { method: "DELETE" });
@@ -374,6 +507,28 @@ function DoctorDashboardPage() {
                         }
                     });
                 }
+            });
+
+            // 2. Crear slots de esta sede
+            const creates: Promise<{ success: boolean }>[] = [];
+            DIAS.forEach(({ nombre, index }) => {
+                const day = currentSchedule[nombre];
+                if (!day?.enabled) return;
+                day.intervals.forEach((interval) => {
+                    creates.push(
+                        apiFetch(`/api/medicos/${medicoId}/disponibilidad`, {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                                dia_semana: index,
+                                hora_inicio: interval.from,
+                                hora_fin: interval.to,
+                                sede: selectedSede,
+                                duracion_turno: duracionTurno,
+                            }),
+                        }).then((r) => r.json())
+                    );
+                });
             });
 
             const results = await Promise.all(creates);
@@ -430,7 +585,7 @@ function DoctorDashboardPage() {
                     <img src={personIcon} alt="Usuario" className="avatar-icon" />
                 </div>
                 <div>
-                    <h2 className="dashboard-name">{doctorName}</h2>
+                    <h2 className="dashboard-name">{displayName}</h2>
                     <p className="dashboard-sub">{doctorLicense}</p>
                 </div>
             </div>
@@ -509,10 +664,15 @@ function DoctorDashboardPage() {
                                         opacity: (isPast || isCanceled) ? 0.7 : 1,
                                     }}
                                 >
-                                    <div>
-                                        <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                            {nombrePaciente}
-                                        </p>
+                                    <div style={{ flex: 1 }}>
+                                        <button
+                                            onClick={() => setFichaAbierta({ id: turno.paciente_id, nombre: nombrePaciente })}
+                                            style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", width: "100%" }}
+                                        >
+                                            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#2f5cf5", textDecoration: "underline dotted" }}>
+                                                {nombrePaciente}
+                                            </p>
+                                        </button>
                                         <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
                                             📅 {fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
                                             {" "}🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
@@ -590,7 +750,7 @@ function DoctorDashboardPage() {
                     </div>
 
                     <div className="options-grid">
-                        {SPECIALTIES.map((spec) => (
+                        {[...new Set([...SPECIALTIES, ...specialties])].map((spec) => (
                             <label
                                 key={spec}
                                 className={`option-card ${specialties.includes(spec) ? "selected" : ""}`}
@@ -627,7 +787,7 @@ function DoctorDashboardPage() {
                     </div>
 
                     <div className="options-grid">
-                        {HOSPITALS.map((hospital) => (
+                        {[...new Set([...HOSPITALS, ...hospitals])].map((hospital) => (
                             <label
                                 key={hospital}
                                 className={`option-card ${hospitals.includes(hospital) ? "selected" : ""}`}
@@ -644,9 +804,48 @@ function DoctorDashboardPage() {
                     </div>
                 </div>
 
+                <div className="profile-block">
+                    <div className="profile-block-header">
+                        <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <h3>Obras sociales que atendés</h3>
+                    </div>
+
+                    <div className="selected-list chips-list">
+                        {obrasSociales.length > 0 ? (
+                            obrasSociales.map((o) => (
+                                <span key={o} className="info-chip">{o}</span>
+                            ))
+                        ) : (
+                            <p className="empty-text">Sin restricción — atendés todos los planes.</p>
+                        )}
+                    </div>
+
+                    <div className="options-grid">
+                        {OBRAS_SOCIALES.map((o) => (
+                            <label
+                                key={o}
+                                className={`option-card ${obrasSociales.includes(o) ? "selected" : ""}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={obrasSociales.includes(o)}
+                                    onChange={() => toggleSelection(o, obrasSociales, setObrasSociales)}
+                                />
+                                <span className="custom-checkbox"></span>
+                                <span className="option-text">{o}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 6 }}>
+                        Si no seleccionás ninguna, aparecés para todos los pacientes.
+                    </p>
+                </div>
+
                 {profileMsg && <p style={{ color: profileMsg.includes("✅") ? "green" : "red", fontSize: "0.9rem", paddingBottom: "10px" }}>{profileMsg}</p>}
-                <button 
-                    className="dashboard-button save-button" 
+                <button
+                    className="dashboard-button save-button"
                     onClick={handleSaveProfile}
                     disabled={savingProfile}
                 >
@@ -666,7 +865,7 @@ function DoctorDashboardPage() {
                         <button
                             className="schedule-secondary-button"
                             onClick={() => setIsEditingSchedule(true)}
-                            disabled={loadingSchedule}
+                            disabled={loadingSchedule || hospitals.length === 0}
                         >
                             {loadingSchedule ? "Cargando..." : "Editar"}
                         </button>
@@ -795,8 +994,8 @@ function DoctorDashboardPage() {
 
             <div className="dashboard-card">
                 <h3>Configuración</h3>
-                <button className="dashboard-button">Editar Perfil</button>
-                <button className="dashboard-button">Cambiar Contraseña</button>
+                <button className="dashboard-button" onClick={() => { setDraftNombre(doctorData.nombre_apellido ?? ""); setShowEditProfileModal(true); }}>Editar Perfil</button>
+                <button className="dashboard-button" onClick={() => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswordModal(true); }}>Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
                 <button className="dashboard-button logout" onClick={handleLogout}>
                     Cerrar sesión
@@ -890,5 +1089,43 @@ function DoctorDashboardPage() {
         </div>
     );
 }
+
+const labelStyle: React.CSSProperties = {
+    fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4,
+};
+
+const overlayStyle: React.CSSProperties = {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0,0,0,0.45)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 200,
+    padding: "20px",
+};
+
+const modalStyle: React.CSSProperties = {
+    background: "white",
+    width: "100%",
+    maxWidth: 480,
+    borderRadius: "24px",
+    padding: "24px 20px 32px",
+};
+
+const modalHeaderStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+};
+
+const closeBtnStyle: React.CSSProperties = {
+    background: "none",
+    border: "none",
+    fontSize: 18,
+    cursor: "pointer",
+    color: "#6b7280",
+};
 
 export default DoctorDashboardPage;

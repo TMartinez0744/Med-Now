@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { showToast } from "../lib/toast";
 
 function PatientLoginPage() {
     const navigate = useNavigate();
@@ -14,17 +15,17 @@ function PatientLoginPage() {
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
         if (!dni || !password) {
-            alert("Completá todos los campos");
+            showToast("Completá todos los campos");
             return;
         }
 
         if (!dniRegex.test(dni)) {
-            alert("El DNI debe tener 7 u 8 números");
+            showToast("El DNI debe tener 7 u 8 números");
             return;
         }
 
         if (!passwordRegex.test(password)) {
-            alert("La contraseña debe tener al menos 8 caracteres, una letra y un número");
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número");
             return;
         }
 
@@ -43,7 +44,7 @@ function PatientLoginPage() {
             const result = await response.json();
 
             if (!response.ok) {
-                alert("Error: " + result.message);
+                showToast("Error: " + result.message);
                 return;
             }
 
@@ -78,7 +79,7 @@ function PatientLoginPage() {
             navigate("/patient/dashboard");
         } catch (error) {
             console.error(error);
-            alert("Error al conectar con el backend");
+            showToast("Algo salió mal. Intentá de nuevo.");
         }
     };
 

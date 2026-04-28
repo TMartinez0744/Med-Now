@@ -2,7 +2,6 @@ const disponibilidadService = require('../services/disponibilidadService');
 
 class DisponibilidadController {
 
-    // GET /api/medicos/:id/disponibilidad
     async getByMedico(req, res) {
         try {
             const { id } = req.params;
@@ -14,8 +13,6 @@ class DisponibilidadController {
         }
     }
 
-    // POST /api/medicos/:id/disponibilidad
-    // Body: { dia_semana: 1, hora_inicio: "09:00", hora_fin: "13:00" }
     async create(req, res) {
         try {
             const { id } = req.params;
@@ -43,26 +40,22 @@ class DisponibilidadController {
         }
     }
 
-    // DELETE /api/disponibilidad/:id
     async delete(req, res) {
         try {
             const { id } = req.params;
             await disponibilidadService.delete(id);
-            res.json({ success: true, message: 'Slot de disponibilidad eliminado' });
+            res.json({ success: true });
         } catch (error) {
-            if (error.code === 'P2025') {
-                return res.status(404).json({ success: false, message: 'Slot no encontrado' });
-            }
             console.error('Error en DisponibilidadController.delete:', error);
             res.status(500).json({ success: false, message: 'Error interno del servidor' });
         }
     }
 
-    // DELETE /api/medicos/:id/disponibilidad  (borra todos los slots del médico)
     async deleteAllByMedico(req, res) {
         try {
             const { id } = req.params;
-            const result = await disponibilidadService.deleteAllByMedico(id);
+            const { sede } = req.query;
+            const result = await disponibilidadService.deleteAllByMedico(id, sede || null);
             res.json({ success: true, deleted: result.count });
         } catch (error) {
             console.error('Error en DisponibilidadController.deleteAllByMedico:', error);

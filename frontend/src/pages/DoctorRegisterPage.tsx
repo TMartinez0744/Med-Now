@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { showToast } from "../lib/toast";
 
 function DoctorRegisterPage() {
     const navigate = useNavigate();
@@ -24,17 +25,17 @@ function DoctorRegisterPage() {
         }
 
         if (!/^\d{4,8}$/.test(licenseNumber.trim())) {
-            alert("Ingresá solo el número de matrícula (4 a 8 dígitos)");
+            showToast("Ingresá solo el número de matrícula (4 a 8 dígitos)");
             return;
         }
 
         if (!passwordRegex.test(password)) {
-            alert("La contraseña debe tener al menos 8 caracteres, una letra y un número");
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número");
             return;
         }
 
         if (password !== confirmPassword) {
-            alert("Las contraseñas no coinciden");
+            showToast("Las contraseñas no coinciden");
             return;
         }
 
@@ -56,7 +57,7 @@ function DoctorRegisterPage() {
             const result = await response.json();
 
             if (!response.ok) {
-                alert("Error: " + result.message);
+                showToast("Error: " + result.message);
                 return;
             }
 
@@ -72,12 +73,12 @@ function DoctorRegisterPage() {
 
             localStorage.setItem("user", fullLicense);
 
-            alert("Registro exitoso");
+            showToast("Registro exitoso", "success");
             navigate("/login/doctor");
 
         } catch (error) {
             console.error(error);
-            alert("Error al conectar con el backend");
+            showToast("Algo salió mal. Intentá de nuevo.");
         }
     };
 

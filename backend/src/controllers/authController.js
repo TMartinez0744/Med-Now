@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const supabaseSedes = require('../config/supabaseSedes');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
@@ -44,6 +45,12 @@ const register = async (req, res) => {
             await supabase.from('medicos').insert([{ id: userId, especialidades: [], sedes: [], recibir_turnos: true }]);
         } else if (tipo_usuario === 'paciente') {
             await supabase.from('pacientes').insert([{ id: userId, obra_social: null }]);
+            await supabaseSedes.from('paciente_perfil').insert([{
+                paciente_id: userId,
+                genero: genero || null,
+                fecha_nacimiento: fecha_nacimiento || null,
+                email: email || null,
+            }]);
         }
 
         return res.status(201).json({ message: 'Registro exitoso' });
@@ -60,14 +67,14 @@ const login = async (req, res) => {
         return res.status(400).json({ message: 'DNI y password son obligatorios' });
     }
 
-    // Acepta "MN 99001", "MP 99001" o solo "99001"
+    // Normaliza: "MN 99001", "M.N. 99001", "MP99001" → "99001"
     const dniNormalizado = dni.replace(/^M[NP]\.?\s*/i, '').trim();
 
     try {
         const { data: profiles, error } = await supabase
             .from('profiles')
             .select('id, nombre_apellido, dni, tipo_usuario, password')
-            .or(`dni.eq.${dniNormalizado},dni.eq.${dni}`);
+            .or(`dni.eq.${dniNormalizado},dni.ilike.*${dniNormalizado}`);
 
         if (error) {
             console.error('Supabase fetch error in login:', error);
@@ -98,7 +105,6 @@ const login = async (req, res) => {
             medicoData = medico;
         }
 
-        // Remover password antes de enviar al front
         delete profile.password;
 
         // Generar token JWT
