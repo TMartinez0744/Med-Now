@@ -68,25 +68,102 @@ function PatientDashboardPage() {
             : "Usuario"
     );
 
+    const GENEROS = ["Femenino", "Masculino", "No binario"] as const;
+
     const [showEditProfileModal, setShowEditProfileModal] = useState(false);
     const [draftName, setDraftName] = useState(patientData.name ?? "");
     const [draftLastName, setDraftLastName] = useState(patientData.lastName ?? "");
+    const [draftDni, setDraftDni] = useState(patientData.dni ?? "");
+    const [draftEmail, setDraftEmail] = useState("");
+    const [draftFechaNacimiento, setDraftFechaNacimiento] = useState("");
+    const [draftGenero, setDraftGenero] = useState("");
+    const [draftNumeroAfiliado, setDraftNumeroAfiliado] = useState("");
     const [savingName, setSavingName] = useState(false);
+    const [perfilIncompleto, setPerfilIncompleto] = useState(false);
 
-    const saveProfileName = async () => {
-        if (!draftName.trim()) return;
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [savingPassword, setSavingPassword] = useState(false);
+
+    const changePassword = async () => {
+        if (!newPassword || !currentPassword) { showToast("Completá todos los campos"); return; }
+        if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número"); return;
+        }
+        if (newPassword !== confirmPassword) { showToast("Las contraseñas no coinciden"); return; }
+        setSavingPassword(true);
+        try {
+            const res = await apiFetch("/api/auth/change-password", {
+                method: "POST",
+                body: JSON.stringify({ currentPassword, newPassword }),
+            });
+            const json = await res.json();
+            if (res.ok) {
+                showToast("Contraseña actualizada", "success");
+                setShowPasswordModal(false);
+                setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+            } else {
+                showToast(json.message ?? "Error al cambiar la contraseña");
+            }
+        } catch { showToast("Error al cambiar la contraseña"); }
+        setSavingPassword(false);
+    };
+
+    useEffect(() => {
+        if (!patientData.id) return;
+        apiFetch(`/api/pacientes/${patientData.id}/perfil`)
+            .then(r => r.json())
+            .then(({ data }) => {
+                if (data) {
+                    setDraftEmail(data.email ?? "");
+                    setDraftFechaNacimiento(data.fecha_nacimiento ?? "");
+                    setDraftGenero(data.genero ?? "");
+                    setDraftNumeroAfiliado(data.numero_afiliado ?? "");
+                    setPerfilIncompleto(!data.genero || !data.fecha_nacimiento || !data.email || !data.numero_afiliado);
+                } else {
+                    setPerfilIncompleto(true);
+                }
+            })
+            .catch(() => setPerfilIncompleto(true));
+    }, [patientData.id]);
+
+    const openEditProfile = () => {
+        setDraftName(patientData.name ?? "");
+        setDraftLastName(patientData.lastName ?? "");
+        setDraftDni(patientData.dni ?? "");
+        setShowEditProfileModal(true);
+    };
+
+    const saveProfile = async () => {
+        if (!draftName.trim()) { showToast("El nombre no puede estar vacío"); return; }
+        if (draftEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draftEmail.trim())) {
+            showToast("El email no tiene un formato válido"); return;
+        }
+        if (draftNumeroAfiliado && !/^\d{6,15}$/.test(draftNumeroAfiliado)) {
+            showToast("El número de afiliado debe tener entre 6 y 15 dígitos"); return;
+        }
         setSavingName(true);
         const nombreCompleto = `${draftName.trim()} ${draftLastName.trim()}`.trim();
         try {
-            const res = await apiFetch(`/api/profiles/${patientData.id}`, {
-                method: "PATCH",
-                body: JSON.stringify({ nombre_apellido: nombreCompleto }),
-            });
-            if (res.ok) {
-                const updated = { ...patientData, name: draftName.trim(), lastName: draftLastName.trim(), nombre_apellido: nombreCompleto };
+            const [resProfile, resPerfil] = await Promise.all([
+                apiFetch(`/api/profiles/${patientData.id}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ nombre_apellido: nombreCompleto, dni: draftDni.trim() }),
+                }),
+                apiFetch(`/api/pacientes/${patientData.id}/perfil`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ genero: draftGenero || null, fecha_nacimiento: draftFechaNacimiento || null, email: draftEmail.trim() || null, numero_afiliado: draftNumeroAfiliado.trim() || null }),
+                }),
+            ]);
+            if (resProfile.ok && resPerfil.ok) {
+                const updated = { ...patientData, name: draftName.trim(), lastName: draftLastName.trim(), nombre_apellido: nombreCompleto, dni: draftDni.trim() };
                 localStorage.setItem("patientData", JSON.stringify(updated));
                 setDisplayName(`${capitalize(draftName.trim())} ${capitalize(draftLastName.trim())}`);
+                setPerfilIncompleto(!draftGenero || !draftFechaNacimiento || !draftEmail.trim() || !draftNumeroAfiliado.trim());
                 setShowEditProfileModal(false);
+                showToast("Perfil actualizado", "success");
             } else {
                 showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
             }
@@ -381,11 +458,35 @@ function PatientDashboardPage() {
                 </button>
             </div>
 
+            {/* ── Banner perfil incompleto ── */}
+            {perfilIncompleto && (
+                <div className="dashboard-card" style={{
+                    background: "#fffbeb", border: "1.5px solid #fbbf24",
+                    display: "flex", alignItems: "flex-start", gap: 12,
+                }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <div style={{ flex: 1 }}>
+                        <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 14, color: "#92400e" }}>Completá tu perfil</p>
+                        <p style={{ margin: "0 0 8px", fontSize: 13, color: "#b45309" }}>Falta agregar género, fecha de nacimiento, email o número de afiliado.</p>
+                        <button
+                            onClick={openEditProfile}
+                            style={{ background: "#d97706", color: "white", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        >
+                            Completar ahora
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* ── Card Configuración ── */}
             <div className="dashboard-card">
                 <h3>Configuración</h3>
-                <button className="dashboard-button" onClick={() => { setDraftName(patientData.name ?? ""); setDraftLastName(patientData.lastName ?? ""); setShowEditProfileModal(true); }}>Editar Perfil</button>
-                <button className="dashboard-button">Cambiar Contraseña</button>
+                <button className="dashboard-button" onClick={openEditProfile}>Editar Perfil</button>
+                <button className="dashboard-button" onClick={() => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswordModal(true); }}>Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
                 <button className="dashboard-button logout" onClick={handleLogout}>
                     Cerrar sesión
@@ -454,12 +555,13 @@ function PatientDashboardPage() {
             {/* modal editar perfil */}
             {showEditProfileModal && (
                 <div style={overlayStyle} onClick={() => setShowEditProfileModal(false)}>
-                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ ...modalStyle, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, fontSize: 18 }}>Editar Perfil</h3>
                             <button onClick={() => setShowEditProfileModal(false)} style={closeBtnStyle}>✕</button>
                         </div>
-                        <label style={{ fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4 }}>Nombre</label>
+
+                        <label style={labelStyle}>Nombre</label>
                         <input
                             className="auth-input"
                             placeholder="Nombre"
@@ -467,16 +569,100 @@ function PatientDashboardPage() {
                             onChange={(e) => setDraftName(e.target.value)}
                             style={{ marginBottom: 12 }}
                         />
-                        <label style={{ fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4 }}>Apellido</label>
+
+                        <label style={labelStyle}>Apellido</label>
                         <input
                             className="auth-input"
                             placeholder="Apellido"
                             value={draftLastName}
                             onChange={(e) => setDraftLastName(e.target.value)}
-                            style={{ marginBottom: 20 }}
+                            style={{ marginBottom: 12 }}
                         />
-                        <button className="auth-button" onClick={saveProfileName} disabled={savingName}>
+
+                        <label style={labelStyle}>DNI</label>
+                        <input
+                            className="auth-input"
+                            placeholder="DNI"
+                            inputMode="numeric"
+                            value={draftDni}
+                            onChange={(e) => setDraftDni(e.target.value.replace(/\D/g, ""))}
+                            style={{ marginBottom: 12 }}
+                        />
+
+                        <label style={labelStyle}>Email</label>
+                        <input
+                            className="auth-input"
+                            placeholder="ejemplo@mail.com"
+                            type="email"
+                            value={draftEmail}
+                            onChange={(e) => setDraftEmail(e.target.value)}
+                            style={{ marginBottom: 12 }}
+                        />
+
+                        <label style={labelStyle}>Fecha de nacimiento</label>
+                        <input
+                            className="auth-input"
+                            type="date"
+                            value={draftFechaNacimiento}
+                            onChange={(e) => setDraftFechaNacimiento(e.target.value)}
+                            max={new Date().toISOString().slice(0, 10)}
+                            style={{ marginBottom: 12 }}
+                        />
+
+                        <label style={labelStyle}>Número de afiliado (obra social)</label>
+                        <input
+                            className="auth-input"
+                            placeholder="Ej: 12345678"
+                            inputMode="numeric"
+                            value={draftNumeroAfiliado}
+                            onChange={(e) => setDraftNumeroAfiliado(e.target.value.replace(/\D/g, ""))}
+                            style={{ marginBottom: 12 }}
+                        />
+
+                        <label style={labelStyle}>Género</label>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 24, marginTop: 4 }}>
+                            {GENEROS.map((g) => (
+                                <button
+                                    key={g}
+                                    type="button"
+                                    onClick={() => setDraftGenero(draftGenero === g ? "" : g)}
+                                    style={{
+                                        padding: "9px 18px", borderRadius: 10,
+                                        border: draftGenero === g ? "2px solid #2f5cf5" : "1.5px solid #e5e7eb",
+                                        background: draftGenero === g ? "#eef3ff" : "white",
+                                        color: draftGenero === g ? "#2f5cf5" : "#374151",
+                                        fontWeight: draftGenero === g ? 700 : 500,
+                                        fontSize: 14, cursor: "pointer",
+                                    }}
+                                >
+                                    {g}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button className="auth-button" onClick={saveProfile} disabled={savingName}>
                             {savingName ? "Guardando..." : "Guardar cambios"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* modal cambiar contraseña */}
+            {showPasswordModal && (
+                <div style={overlayStyle} onClick={() => setShowPasswordModal(false)}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, fontSize: 18 }}>Cambiar contraseña</h3>
+                            <button onClick={() => setShowPasswordModal(false)} style={closeBtnStyle}>✕</button>
+                        </div>
+                        <label style={labelStyle}>Contraseña actual</label>
+                        <input className="auth-input" type="password" placeholder="Contraseña actual" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label style={labelStyle}>Nueva contraseña</label>
+                        <input className="auth-input" type="password" placeholder="Mínimo 8 caracteres, una letra y un número" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label style={labelStyle}>Confirmar nueva contraseña</label>
+                        <input className="auth-input" type="password" placeholder="Repetí la nueva contraseña" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={{ marginBottom: 24 }} />
+                        <button className="auth-button" onClick={changePassword} disabled={savingPassword}>
+                            {savingPassword ? "Guardando..." : "Confirmar"}
                         </button>
                     </div>
                 </div>
@@ -635,6 +821,10 @@ const closeBtnStyle: React.CSSProperties = {
     fontSize: 18,
     cursor: "pointer",
     color: "#6b7280",
+};
+
+const labelStyle: React.CSSProperties = {
+    fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4,
 };
 
 const suggestionBtnStyle: React.CSSProperties = {
