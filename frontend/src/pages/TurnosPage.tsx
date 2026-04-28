@@ -24,6 +24,7 @@ type Slot = {
     hora_inicio: string;
     hora_fin: string;
     sede: string | null;
+    duracion_turno: number;
 };
 
 type Medico = {
@@ -32,6 +33,7 @@ type Medico = {
     especialidades: string[];
     sedes: string[];
     recibir_turnos: boolean;
+    duracion_turno: number;
     slots: Slot[];
 };
 
@@ -64,16 +66,18 @@ function formatFecha(date: Date): string {
     });
 }
 
-function getHorasDesdeSlots(slots: Slot[]): string[] {
+function getHorasDesdeSlots(slots: Slot[], duracion: number): string[] {
     const seen = new Set<string>();
     const horas: string[] = [];
     for (const slot of slots) {
-        let [h, m] = slot.hora_inicio.split(":").map(Number);
-        const hFin = Number(slot.hora_fin.split(":")[0]);
-        while (h < hFin) {
-            const label = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        const [sh, sm] = slot.hora_inicio.split(":").map(Number);
+        const [eh, em] = slot.hora_fin.split(":").map(Number);
+        let cur = sh * 60 + sm;
+        const end = eh * 60 + em;
+        while (cur + duracion <= end) {
+            const label = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`;
             if (!seen.has(label)) { seen.add(label); horas.push(label); }
-            h++;
+            cur += duracion;
         }
     }
     return horas;
@@ -190,13 +194,15 @@ function TurnosPage() {
                         .map(async (m) => {
                             const rSlots = await apiFetch(`/api/medicos/${m.id}/disponibilidad`);
                             const jSlots = await rSlots.json();
+                            const slots: Slot[] = jSlots.data ?? [];
                             return {
                                 id: m.id,
                                 nombre_apellido: m.profiles?.nombre_apellido ?? "Médico",
                                 especialidades: m.especialidades ?? [],
                                 sedes: m.sedes ?? [],
                                 recibir_turnos: m.recibir_turnos,
-                                slots: jSlots.data ?? [],
+                                duracion_turno: slots[0]?.duracion_turno ?? 30,
+                                slots,
                             };
                         })
                 );
@@ -772,7 +778,7 @@ function TurnosPage() {
                                             Horarios disponibles
                                         </p>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
-                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada)).map((hora) => {
+                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada), reserva.medico.duracion_turno).map((hora) => {
                                                 const iso = buildFechaHora(fechaSeleccionada, hora);
                                                 const ocupada = turnosOcupados.includes(iso) || fechasOcupadas.includes(iso);
                                                 const seleccionada = horaSeleccionada === hora;

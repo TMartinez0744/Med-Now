@@ -178,6 +178,23 @@ router.post('/turnos',                     turnosController.create.bind(turnosCo
 router.get('/pacientes/:id/turnos',        turnosController.getByPaciente.bind(turnosController));
 router.get('/medicos/:id/turnos',          turnosController.getByMedico.bind(turnosController));
 router.get('/pacientes/:id/turnos/historial', turnosController.getHistorialByPaciente.bind(turnosController));
+
+// GET /api/pacientes/:id/turnos/con-medico/:medicoId → historial entre paciente y médico
+router.get('/pacientes/:id/turnos/con-medico/:medicoId', async (req, res) => {
+    const { id, medicoId } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('turnos')
+            .select('id, fecha_hora, estado')
+            .eq('paciente_id', id)
+            .eq('medico_id', medicoId)
+            .order('fecha_hora', { ascending: false });
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (err) {
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
 router.get('/medicos/:id/turnos/historial',   turnosController.getHistorialByMedico.bind(turnosController));
 router.patch('/turnos/:id/cancelar',       turnosController.cancel.bind(turnosController));
 
