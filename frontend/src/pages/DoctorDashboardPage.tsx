@@ -34,6 +34,11 @@ const HOSPITALS = [
     "Sanatorio Finochietto",
 ];
 
+const OBRAS_SOCIALES = [
+    "OSDE", "Swiss Medical", "Galeno", "IOMA", "Medifé",
+    "Sancor Salud", "PAMI", "Accord Salud", "Medicus", "Omint",
+];
+
 type SlotDB = {
     id: string;
     medico_id: string;
@@ -117,6 +122,14 @@ function DoctorDashboardPage() {
     const [hospitals, setHospitals] = useState<string[]>(
         doctorData.sedes ?? []
     );
+    const [obrasSociales, setObrasSociales] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (!medicoId) return;
+        apiFetch(`/api/medicos/${medicoId}/obras-sociales`)
+            .then(r => r.json())
+            .then(({ data }) => setObrasSociales(data ?? []));
+    }, [medicoId]);
 
     const [savingProfile, setSavingProfile] = useState(false);
     const [profileMsg, setProfileMsg] = useState<string | null>(null);
@@ -149,13 +162,19 @@ function DoctorDashboardPage() {
         setSavingProfile(true);
         setProfileMsg(null);
         try {
-            const res = await apiFetch(`/api/medicos/${medicoId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ especialidades: specialties, sedes: hospitals }),
-            });
+            const [res, resObras] = await Promise.all([
+                apiFetch(`/api/medicos/${medicoId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ especialidades: specialties, sedes: hospitals }),
+                }),
+                apiFetch(`/api/medicos/${medicoId}/obras-sociales`, {
+                    method: "PUT",
+                    body: JSON.stringify({ obras_sociales: obrasSociales }),
+                }),
+            ]);
             const data = await res.json();
-            if (data.success) {
+            if (data.success && resObras.ok) {
                 setProfileMsg("✅ Cambios guardados correctamente.");
                 const updatedDoctorData = { ...doctorData, especialidades: specialties, sedes: hospitals };
                 localStorage.setItem("doctorData", JSON.stringify(updatedDoctorData));
@@ -171,6 +190,7 @@ function DoctorDashboardPage() {
         }
     };
 
+    const [duracionTurno, setDuracionTurno] = useState<number>(30);
     const [isEditingSchedule, setIsEditingSchedule] = useState(false);
     const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [savingSchedule, setSavingSchedule] = useState(false);
@@ -223,6 +243,7 @@ function DoctorDashboardPage() {
             .then(({ data }: { data: SlotDB[] }) => {
                 console.log('[load disponibilidad]', data);
                 if (!data || data.length === 0) return;
+                if (data[0]?.duracion_turno) setDuracionTurno(data[0].duracion_turno);
 
                 const bySedeDay: Record<string, Record<string, Interval[]>> = {};
                 data.forEach((slot) => {
@@ -259,6 +280,36 @@ function DoctorDashboardPage() {
         localStorage.removeItem("doctorData");
         localStorage.removeItem("token");
         navigate("/");
+    };
+
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [savingPassword, setSavingPassword] = useState(false);
+
+    const changePassword = async () => {
+        if (!currentPassword || !newPassword) { showToast("Completá todos los campos"); return; }
+        if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número"); return;
+        }
+        if (newPassword !== confirmPassword) { showToast("Las contraseñas no coinciden"); return; }
+        setSavingPassword(true);
+        try {
+            const res = await apiFetch("/api/auth/change-password", {
+                method: "POST",
+                body: JSON.stringify({ currentPassword, newPassword }),
+            });
+            const json = await res.json();
+            if (res.ok) {
+                showToast("Contraseña actualizada", "success");
+                setShowPasswordModal(false);
+                setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+            } else {
+                showToast(json.message ?? "Error al cambiar la contraseña");
+            }
+        } catch { showToast("Error al cambiar la contraseña"); }
+        setSavingPassword(false);
     };
 
     const toggleSelection = (
@@ -396,6 +447,7 @@ function DoctorDashboardPage() {
                                 hora_inicio: interval.from,
                                 hora_fin: interval.to,
                                 sede: selectedSede,
+                                duracion_turno: duracionTurno,
                             }),
                         }).then((r) => r.json())
                     );
@@ -582,9 +634,48 @@ function DoctorDashboardPage() {
                     </div>
                 </div>
 
+                <div className="profile-block">
+                    <div className="profile-block-header">
+                        <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <h3>Obras sociales que atendés</h3>
+                    </div>
+
+                    <div className="selected-list chips-list">
+                        {obrasSociales.length > 0 ? (
+                            obrasSociales.map((o) => (
+                                <span key={o} className="info-chip">{o}</span>
+                            ))
+                        ) : (
+                            <p className="empty-text">Sin restricción — atendés todos los planes.</p>
+                        )}
+                    </div>
+
+                    <div className="options-grid">
+                        {OBRAS_SOCIALES.map((o) => (
+                            <label
+                                key={o}
+                                className={`option-card ${obrasSociales.includes(o) ? "selected" : ""}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={obrasSociales.includes(o)}
+                                    onChange={() => toggleSelection(o, obrasSociales, setObrasSociales)}
+                                />
+                                <span className="custom-checkbox"></span>
+                                <span className="option-text">{o}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 6 }}>
+                        Si no seleccionás ninguna, aparecés para todos los pacientes.
+                    </p>
+                </div>
+
                 {profileMsg && <p style={{ color: profileMsg.includes("✅") ? "green" : "red", fontSize: "0.9rem", paddingBottom: "10px" }}>{profileMsg}</p>}
-                <button 
-                    className="dashboard-button save-button" 
+                <button
+                    className="dashboard-button save-button"
                     onClick={handleSaveProfile}
                     disabled={savingProfile}
                 >
@@ -631,6 +722,30 @@ function DoctorDashboardPage() {
                 {scheduleMsg && (
                     <p style={{ padding: "0 1rem 0.5rem", fontSize: "0.9rem" }}>{scheduleMsg}</p>
                 )}
+
+                {/* Duración del turno */}
+                <div style={{ padding: "0 1rem 1rem" }}>
+                    <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Duración de cada turno</p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        {[15, 30, 45, 60].map((min) => (
+                            <button
+                                key={min}
+                                onClick={() => isEditingSchedule && setDuracionTurno(min)}
+                                style={{
+                                    padding: "8px 16px", borderRadius: 10, cursor: isEditingSchedule ? "pointer" : "default",
+                                    border: duracionTurno === min ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
+                                    background: duracionTurno === min ? "#eef3ff" : "#f9fafb",
+                                    color: duracionTurno === min ? "#2f5cf5" : "#6b7280",
+                                    fontWeight: duracionTurno === min ? 700 : 500,
+                                    fontSize: 14,
+                                    opacity: !isEditingSchedule && duracionTurno !== min ? 0.5 : 1,
+                                }}
+                            >
+                                {min === 60 ? "1 h" : `${min} min`}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
                 {hospitals.length === 0 ? (
                     <p className="empty-text" style={{ padding: "0 1rem 1rem" }}>
@@ -775,7 +890,7 @@ function DoctorDashboardPage() {
             <div className="dashboard-card">
                 <h3>Configuración</h3>
                 <button className="dashboard-button" onClick={() => { setDraftNombre(doctorData.nombre_apellido ?? ""); setShowEditProfileModal(true); }}>Editar Perfil</button>
-                <button className="dashboard-button">Cambiar Contraseña</button>
+                <button className="dashboard-button" onClick={() => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswordModal(true); }}>Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
                 <button className="dashboard-button logout" onClick={handleLogout}>
                     Cerrar sesión
@@ -788,6 +903,9 @@ function DoctorDashboardPage() {
             {fichaAbierta && (
                 <FichaPaciente
                     pacienteId={fichaAbierta.id}
+                    medicoId={medicoId}
+                    nombreMedico={doctorData.nombre_apellido ?? "Médico"}
+                    matriculaMedico={doctorData.licenseNumber ?? undefined}
                     nombrePaciente={fichaAbierta.nombre}
                     onClose={() => setFichaAbierta(null)}
                 />
@@ -816,9 +934,34 @@ function DoctorDashboardPage() {
                     </div>
                 </div>
             )}
+
+            {/* modal cambiar contraseña */}
+            {showPasswordModal && (
+                <div style={overlayStyle} onClick={() => setShowPasswordModal(false)}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, fontSize: 18 }}>Cambiar contraseña</h3>
+                            <button onClick={() => setShowPasswordModal(false)} style={closeBtnStyle}>✕</button>
+                        </div>
+                        <label style={labelStyle}>Contraseña actual</label>
+                        <input className="auth-input" type="password" placeholder="Contraseña actual" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label style={labelStyle}>Nueva contraseña</label>
+                        <input className="auth-input" type="password" placeholder="Mínimo 8 caracteres, una letra y un número" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label style={labelStyle}>Confirmar nueva contraseña</label>
+                        <input className="auth-input" type="password" placeholder="Repetí la nueva contraseña" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={{ marginBottom: 24 }} />
+                        <button className="auth-button" onClick={changePassword} disabled={savingPassword}>
+                            {savingPassword ? "Guardando..." : "Confirmar"}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
+const labelStyle: React.CSSProperties = {
+    fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4,
+};
 
 const overlayStyle: React.CSSProperties = {
     position: "fixed",

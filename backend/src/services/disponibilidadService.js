@@ -1,10 +1,4 @@
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
-
-const supabaseSedes = createClient(
-    process.env.SUPABASE_SEDES_URL,
-    process.env.SUPABASE_SEDES_KEY
-);
+const supabaseSedes = require('../config/supabaseSedes');
 
 const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -26,15 +20,16 @@ class DisponibilidadService {
         }));
     }
 
-    async create(medicoId, { dia_semana, hora_inicio, hora_fin, sede }) {
+    async create(medicoId, { dia_semana, hora_inicio, hora_fin, sede, duracion_turno }) {
         const { data, error } = await supabaseSedes
             .from('disponibilidad_sedes')
             .insert({
-                medico_id:   medicoId,
-                dia_semana:  parseInt(dia_semana),
-                hora_inicio: hora_inicio,
-                hora_fin:    hora_fin,
-                sede:        sede || null,
+                medico_id:     medicoId,
+                dia_semana:    parseInt(dia_semana),
+                hora_inicio:   hora_inicio,
+                hora_fin:      hora_fin,
+                sede:          sede || null,
+                duracion_turno: duracion_turno ?? 30,
             })
             .select()
             .single();

@@ -24,6 +24,7 @@ type Slot = {
     hora_inicio: string;
     hora_fin: string;
     sede: string | null;
+    duracion_turno: number;
 };
 
 type Medico = {
@@ -32,6 +33,8 @@ type Medico = {
     especialidades: string[];
     sedes: string[];
     recibir_turnos: boolean;
+    duracion_turno: number;
+    obras_sociales: string[];
     slots: Slot[];
 };
 
@@ -64,16 +67,18 @@ function formatFecha(date: Date): string {
     });
 }
 
-function getHorasDesdeSlots(slots: Slot[]): string[] {
+function getHorasDesdeSlots(slots: Slot[], duracion: number): string[] {
     const seen = new Set<string>();
     const horas: string[] = [];
     for (const slot of slots) {
-        let [h, m] = slot.hora_inicio.split(":").map(Number);
-        const hFin = Number(slot.hora_fin.split(":")[0]);
-        while (h < hFin) {
-            const label = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        const [sh, sm] = slot.hora_inicio.split(":").map(Number);
+        const [eh, em] = slot.hora_fin.split(":").map(Number);
+        let cur = sh * 60 + sm;
+        const end = eh * 60 + em;
+        while (cur + duracion <= end) {
+            const label = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`;
             if (!seen.has(label)) { seen.add(label); horas.push(label); }
-            h++;
+            cur += duracion;
         }
     }
     return horas;
@@ -118,6 +123,15 @@ function TurnosPage() {
     const [especialidadFiltro, setEspecialidadFiltro] = useState("");
     const [diaFiltro, setDiaFiltro] = useState<number | null>(null);
     const [todasEspecialidades, setTodasEspecialidades] = useState<string[]>([]);
+    const [obraSocialPaciente, setObraSocialPaciente] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!pacienteId) return;
+        apiFetch(`/api/pacientes/${pacienteId}/ficha`)
+            .then(r => r.json())
+            .then(({ data }) => setObraSocialPaciente(data?.obra_social ?? null))
+            .catch(() => {});
+    }, [pacienteId]);
 
     // Próximos y historial
     const [proximosTurnos, setProximosTurnos] = useState<TurnoBackend[]>([]);
@@ -190,13 +204,16 @@ function TurnosPage() {
                         .map(async (m) => {
                             const rSlots = await apiFetch(`/api/medicos/${m.id}/disponibilidad`);
                             const jSlots = await rSlots.json();
+                            const slots: Slot[] = jSlots.data ?? [];
                             return {
                                 id: m.id,
+                                obras_sociales: (m as any).obras_sociales ?? [],
                                 nombre_apellido: m.profiles?.nombre_apellido ?? "Médico",
                                 especialidades: m.especialidades ?? [],
                                 sedes: m.sedes ?? [],
                                 recibir_turnos: m.recibir_turnos,
-                                slots: jSlots.data ?? [],
+                                duracion_turno: slots[0]?.duracion_turno ?? 30,
+                                slots,
                             };
                         })
                 );
@@ -221,7 +238,10 @@ function TurnosPage() {
     const medicosFiltrados = medicos.filter((m) => {
         const pasaEsp = !especialidadFiltro || m.especialidades.includes(especialidadFiltro);
         const pasaDia = diaFiltro === null || m.slots.some((s) => s.dia_semana === diaFiltro);
-        return pasaEsp && pasaDia;
+        const pasaObra = !obraSocialPaciente
+            || m.obras_sociales.length === 0
+            || m.obras_sociales.includes(obraSocialPaciente);
+        return pasaEsp && pasaDia && pasaObra;
     });
 
     const abrirModal = async (medico: Medico, dia_semana: number, slots: Slot[]) => {
@@ -772,7 +792,7 @@ function TurnosPage() {
                                             Horarios disponibles
                                         </p>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
-                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada)).map((hora) => {
+                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada), reserva.medico.duracion_turno).map((hora) => {
                                                 const iso = buildFechaHora(fechaSeleccionada, hora);
                                                 const ocupada = turnosOcupados.includes(iso) || fechasOcupadas.includes(iso);
                                                 const seleccionada = horaSeleccionada === hora;
