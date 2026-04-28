@@ -5,6 +5,9 @@ require("dotenv").config();
 const authRoutes = require("./routes/authRoutes");
 const apiRoutes = require("./routes/api");
 
+// Inicializar Cron Jobs de Recordatorios
+require('./cron');
+
 const app = express();
 
 app.use(cors());

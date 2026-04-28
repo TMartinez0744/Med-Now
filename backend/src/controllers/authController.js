@@ -1,11 +1,12 @@
 const supabase = require('../config/supabase');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 
 const register = async (req, res) => {
-    const { dni, password, nombre_apellido, tipo_usuario } = req.body;
+    const { dni, email, password, nombre_apellido, tipo_usuario } = req.body;
 
-    if (!dni || !password || !nombre_apellido || !tipo_usuario) {
+    if (!dni || !email || !password || !nombre_apellido || !tipo_usuario) {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
     }
 
@@ -28,6 +29,7 @@ const register = async (req, res) => {
             .insert([{
                 id: userId,
                 dni,
+                email,
                 nombre_apellido,
                 tipo_usuario,
                 password: hashedPassword
@@ -40,16 +42,6 @@ const register = async (req, res) => {
 
         if (tipo_usuario === 'medico') {
             await supabase.from('medicos').insert([{ id: userId, especialidades: [], sedes: [], recibir_turnos: true }]);
-            
-            // Insertar disponibilidad por defecto (Lunes a Viernes, de 08:00 a 18:00)
-            const defaultDisponibilidad = [1, 2, 3, 4, 5].map(dia => ({
-                id: crypto.randomUUID(),
-                medico_id: userId,
-                dia_semana: dia,
-                hora_inicio: '08:00:00',
-                hora_fin: '18:00:00'
-            }));
-            await supabase.from('disponibilidad').insert(defaultDisponibilidad);
         } else if (tipo_usuario === 'paciente') {
             await supabase.from('pacientes').insert([{ id: userId, obra_social: null }]);
         }
@@ -109,8 +101,16 @@ const login = async (req, res) => {
         // Remover password antes de enviar al front
         delete profile.password;
 
+        // Generar token JWT
+        const token = jwt.sign(
+            { id: profile.id, dni: profile.dni, tipo_usuario: profile.tipo_usuario },
+            process.env.JWT_SECRET || 'mednow_super_secret_key',
+            { expiresIn: '7d' }
+        );
+
         return res.status(200).json({
             message: 'Login correcto',
+            token,
             user: {
                 ...profile,
                 ...(medicoData && { medico: medicoData }),

@@ -21,7 +21,7 @@ class DisponibilidadService {
         }));
     }
 
-    async create(medicoId, { dia_semana, hora_inicio, hora_fin }) {
+    async create(medicoId, { dia_semana, hora_inicio, hora_fin, sede }) {
         const { data, error } = await supabase
             .from('disponibilidad')
             .insert({
@@ -29,6 +29,7 @@ class DisponibilidadService {
                 dia_semana:  parseInt(dia_semana),
                 hora_inicio: hora_inicio,   // "HH:MM"
                 hora_fin:    hora_fin,      // "HH:MM"
+                sede:        sede,          // "Sede / Hospital"
             })
             .select()
             .single();

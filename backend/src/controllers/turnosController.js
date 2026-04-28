@@ -1,4 +1,6 @@
 const turnosService = require('../services/turnosService');
+const emailService = require('../services/emailService');
+const supabase = require('../config/supabase');
 
 class TurnosController {
 
@@ -15,6 +17,43 @@ class TurnosController {
             }
 
             const turno = await turnosService.create({ paciente_id, medico_id, fecha_hora, notas_triage });
+
+            // BACKGROUND TASK: Send notifications and emails
+            (async () => {
+                try {
+                    // Get patient and doctor data
+                    const { data: profiles } = await supabase
+                        .from('profiles')
+                        .select('id, nombre_apellido, email')
+                        .in('id', [paciente_id, medico_id]);
+
+                    if (profiles) {
+                        const paciente = profiles.find(p => p.id === paciente_id);
+                        const medico = profiles.find(p => p.id === medico_id);
+
+                        if (paciente && medico) {
+                            // In-App Notification to Doctor
+                            const dateStr = new Date(fecha_hora).toLocaleString('es-AR');
+                            await supabase.from('notificaciones').insert([{
+                                user_id: medico_id,
+                                mensaje: `Nuevo turno reservado por el paciente ${paciente.nombre_apellido} para el día ${dateStr}.`
+                            }]);
+
+                            // Email Notification
+                            await emailService.notifyNewAppointment(
+                                paciente.email,
+                                medico.email,
+                                paciente.nombre_apellido,
+                                medico.nombre_apellido,
+                                fecha_hora
+                            );
+                        }
+                    }
+                } catch (err) {
+                    console.error("Error sending notifications background task:", err);
+                }
+            })();
+
             res.status(201).json({ success: true, data: turno });
         } catch (error) {
             if (error.code === 'TURNO_DUPLICADO') {

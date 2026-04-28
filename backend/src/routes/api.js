@@ -3,6 +3,9 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const disponibilidadController = require('../controllers/disponibilidadController');
 const turnosController = require('../controllers/turnosController');
+const chatController = require('../controllers/chatController');
+const notificacionesController = require('../controllers/notificacionesController');
+const { verifyToken } = require('../middlewares/authMiddleware');
 
 // Rutas REST clásicas de ejemplo para interactuar con Supabase en lugar de MongoDB
 
@@ -31,15 +34,14 @@ router.get('/medicos', async (req, res) => {
 
 // PUT /api/medicos/:id
 // Actualiza especialidades y sedes de un médico
-router.put('/medicos/:id', async (req, res) => {
+router.put('/medicos/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
     const { especialidades, sedes } = req.body;
     
     try {
         const { data, error } = await supabase
             .from('medicos')
-            .update({ especialidades, sedes })
-            .eq('id', id)
+            .upsert({ id, especialidades, sedes, recibir_turnos: true })
             .select()
             .single();
             
@@ -54,12 +56,12 @@ router.put('/medicos/:id', async (req, res) => {
 
 // GET /api/pacientes/:id
 // Obtiene un paciente por su UUID
-router.get('/pacientes/:id', async (req, res) => {
+router.get('/pacientes/:id', verifyToken, async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
             .from('pacientes')
-            .select('*')
+            .select('*, profiles(nombre_apellido, dni)')
             .eq('id', id)
             .single();
         
@@ -69,6 +71,32 @@ router.get('/pacientes/:id', async (req, res) => {
         res.json({ success: true, data });
     } catch (err) {
         console.error("Error obteniendo paciente:", err);
+        res.status(500).json({ success: false, message: err.message });
+    }
+});
+
+// PUT /api/pacientes/:id
+// Actualiza la ficha médica u obra social
+router.put('/pacientes/:id', verifyToken, async (req, res) => {
+    const { id } = req.params;
+    const { obra_social, ficha_medica } = req.body;
+    
+    try {
+        const payload = {};
+        if (obra_social !== undefined) payload.obra_social = obra_social;
+        if (ficha_medica !== undefined) payload.ficha_medica = ficha_medica;
+
+        const { data, error } = await supabase
+            .from('pacientes')
+            .update(payload)
+            .eq('id', id)
+            .select()
+            .single();
+            
+        if (error) throw error;
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error("Error actualizando paciente:", err);
         res.status(500).json({ success: false, message: err.message });
     }
 });
@@ -97,7 +125,7 @@ router.get('/pacientes', async (req, res) => {
 
 // GET /api/centros_emergencia
 // Obtiene la lista de centros médicos/guardias guardados en la base de datos
-router.get('/centros_emergencia', async (req, res) => {
+router.get('/centros_emergencia', verifyToken, async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('centros_emergencia')
@@ -114,28 +142,30 @@ router.get('/centros_emergencia', async (req, res) => {
 
 // ─── Disponibilidad de médicos ───────────────────────────────────────────────
 
-// GET    /api/medicos/:id/disponibilidad     → listar slots del médico
-// POST   /api/medicos/:id/disponibilidad     → crear slot  { dia_semana, hora_inicio, hora_fin }
-// DELETE /api/medicos/:id/disponibilidad     → eliminar todos los slots del médico
-// DELETE /api/disponibilidad/:id             → eliminar un slot específico
-
-router.get('/medicos/:id/disponibilidad',    disponibilidadController.getByMedico.bind(disponibilidadController));
-router.post('/medicos/:id/disponibilidad',   disponibilidadController.create.bind(disponibilidadController));
-router.delete('/medicos/:id/disponibilidad', disponibilidadController.deleteAllByMedico.bind(disponibilidadController));
-router.delete('/disponibilidad/:id',         disponibilidadController.delete.bind(disponibilidadController));
+router.get('/medicos/:id/disponibilidad',    verifyToken, disponibilidadController.getByMedico.bind(disponibilidadController));
+router.post('/medicos/:id/disponibilidad',   verifyToken, disponibilidadController.create.bind(disponibilidadController));
+router.delete('/medicos/:id/disponibilidad', verifyToken, disponibilidadController.deleteAllByMedico.bind(disponibilidadController));
+router.delete('/disponibilidad/:id',         verifyToken, disponibilidadController.delete.bind(disponibilidadController));
 
 // ─── Turnos (reservas) ───────────────────────────────────────────────────────
 
-// POST  /api/turnos                     → crear turno { paciente_id, medico_id, fecha_hora }
-// GET   /api/pacientes/:id/turnos       → turnos de un paciente
-// GET   /api/medicos/:id/turnos         → turnos de un médico
-// PATCH /api/turnos/:id/cancelar        → cancelar turno
+router.post('/turnos',                     verifyToken, turnosController.create.bind(turnosController));
+router.get('/pacientes/:id/turnos',        verifyToken, turnosController.getByPaciente.bind(turnosController));
+router.get('/medicos/:id/turnos',          verifyToken, turnosController.getByMedico.bind(turnosController));
+router.get('/pacientes/:id/turnos/historial', verifyToken, turnosController.getHistorialByPaciente.bind(turnosController));
+router.get('/medicos/:id/turnos/historial',   verifyToken, turnosController.getHistorialByMedico.bind(turnosController));
+router.patch('/turnos/:id/cancelar',       verifyToken, turnosController.cancel.bind(turnosController));
 
-router.post('/turnos',                     turnosController.create.bind(turnosController));
-router.get('/pacientes/:id/turnos',        turnosController.getByPaciente.bind(turnosController));
-router.get('/medicos/:id/turnos',          turnosController.getByMedico.bind(turnosController));
-router.get('/pacientes/:id/turnos/historial', turnosController.getHistorialByPaciente.bind(turnosController));
-router.get('/medicos/:id/turnos/historial',   turnosController.getHistorialByMedico.bind(turnosController));
-router.patch('/turnos/:id/cancelar',       turnosController.cancel.bind(turnosController));
+// ─── Chat / Mensajería ───────────────────────────────────────────────────────
+
+router.get('/chat/conversaciones/:userId', verifyToken, chatController.getConversaciones.bind(chatController));
+router.get('/chat/mensajes/:userId1/:userId2', verifyToken, chatController.getMensajes.bind(chatController));
+router.post('/chat/mensajes',              verifyToken, chatController.sendMessage.bind(chatController));
+router.get('/chat/usuarios/buscar',        verifyToken, chatController.searchUsers.bind(chatController));
+// ==========================================
+// NOTIFICACIONES (Protegidas)
+// ==========================================
+router.get('/notificaciones', verifyToken, notificacionesController.getByUser);
+router.patch('/notificaciones/:id/leido', verifyToken, notificacionesController.marcarLeido);
 
 module.exports = router;

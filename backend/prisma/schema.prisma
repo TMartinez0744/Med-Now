@@ -17,6 +17,9 @@ model profiles {
   // Relaciones
   medico          medicos?
   paciente        pacientes?
+
+  sent_messages     mensajes[] @relation("SentMessages")
+  received_messages mensajes[] @relation("ReceivedMessages")
 }
 
 model medicos {
@@ -68,4 +71,16 @@ model disponibilidad {
   hora_fin    DateTime @db.Time(6)
 
   medico      medicos  @relation(fields: [medico_id], references: [id], onDelete: Cascade)
+}
+
+model mensajes {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sender_id   String    @db.Uuid
+  receiver_id String    @db.Uuid
+  contenido   String
+  leido       Boolean?  @default(false)
+  created_at  DateTime? @default(now()) @db.Timestamptz(6)
+
+  sender   profiles @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver profiles @relation("ReceivedMessages", fields: [receiver_id], references: [id], onDelete: Cascade)
 }
