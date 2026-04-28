@@ -14,14 +14,27 @@ interface FichaData {
     nombre_apellido: string;
     dni: string;
     obra_social: string | null;
+    numero_afiliado: string | null;
     condiciones: { id: number; label: string }[];
     alergias: { id: number; label: string }[];
+    genero: string | null;
+    fecha_nacimiento: string | null;
+    email: string | null;
 }
 
 interface TurnoFicha {
     id: string;
     fecha_hora: string;
     estado: string;
+}
+
+function calcularEdad(fechaNacimiento: string): number {
+    const hoy = new Date();
+    const nac = new Date(fechaNacimiento);
+    let edad = hoy.getFullYear() - nac.getFullYear();
+    const m = hoy.getMonth() - nac.getMonth();
+    if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+    return edad;
 }
 
 function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, nombrePaciente, onClose }: Props) {
@@ -32,18 +45,26 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
     useEffect(() => {
         const fetch = async () => {
             try {
-                const res = await apiFetch(`/api/pacientes/${pacienteId}/ficha`);
-                const { data } = await res.json();
+                const [fichaRes, perfilRes] = await Promise.all([
+                    apiFetch(`/api/pacientes/${pacienteId}/ficha`),
+                    apiFetch(`/api/pacientes/${pacienteId}/perfil`),
+                ]);
+                const { data } = await fichaRes.json();
+                const { data: perfil } = await perfilRes.json();
                 const fm = data?.ficha_medica as any;
                 setFicha({
                     nombre_apellido: data?.nombre_apellido ?? nombrePaciente ?? "Paciente",
                     dni: data?.dni ?? "-",
                     obra_social: data?.obra_social ?? null,
+                    numero_afiliado: perfil?.numero_afiliado ?? null,
                     condiciones: fm?.condiciones ?? [],
                     alergias: fm?.alergias ?? [],
+                    genero: perfil?.genero ?? null,
+                    fecha_nacimiento: perfil?.fecha_nacimiento ?? null,
+                    email: perfil?.email ?? null,
                 });
             } catch {
-                setFicha({ nombre_apellido: nombrePaciente ?? "Paciente", dni: "-", obra_social: null, condiciones: [], alergias: [] });
+                setFicha({ nombre_apellido: nombrePaciente ?? "Paciente", dni: "-", obra_social: null, numero_afiliado: null, condiciones: [], alergias: [], genero: null, fecha_nacimiento: null, email: null });
             }
             setLoading(false);
         };
@@ -116,8 +137,11 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
 
   <div class="header-box">
     <p class="meta"><strong>DNI:</strong> ${ficha.dni}</p>
-    ${ficha.obra_social ? `<p class="meta"><strong>Obra Social:</strong> ${ficha.obra_social}</p>` : ""}
-    <p class="meta"><strong>Médico:</strong> ${nombreMedico}${matriculaMedico ? ` — Mat. ${matriculaMedico}` : ""}</p>
+    ${ficha.genero ? `<p class="meta"><strong>Género:</strong> ${ficha.genero}</p>` : ""}
+    ${ficha.fecha_nacimiento ? `<p class="meta"><strong>Fecha de nacimiento:</strong> ${new Date(ficha.fecha_nacimiento + "T12:00:00").toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" })} (${calcularEdad(ficha.fecha_nacimiento)} años)</p>` : ""}
+    ${ficha.email ? `<p class="meta"><strong>Email:</strong> ${ficha.email}</p>` : ""}
+    ${ficha.obra_social ? `<p class="meta"><strong>Obra Social:</strong> ${ficha.obra_social}${ficha.numero_afiliado ? ` — N° afiliado: ${ficha.numero_afiliado}` : ""}</p>` : ""}
+    <p class="meta"><strong>Médico tratante:</strong> ${nombreMedico}${matriculaMedico ? ` — Mat. ${matriculaMedico}` : ""}</p>
   </div>
 
   <h2>Condiciones médicas</h2>
@@ -167,8 +191,18 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
                                 {ficha.nombre_apellido}
                             </p>
                             <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>DNI: {ficha.dni}</p>
+                            {ficha.genero && (
+                                <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>{ficha.genero}</p>
+                            )}
+                            {ficha.fecha_nacimiento && (
+                                <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>
+                                    {calcularEdad(ficha.fecha_nacimiento)} años
+                                </p>
+                            )}
                             {ficha.obra_social && (
-                                <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>🛡 {ficha.obra_social}</p>
+                                <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>
+                                    🛡 {ficha.obra_social}{ficha.numero_afiliado ? ` · N° ${ficha.numero_afiliado}` : ""}
+                                </p>
                             )}
                         </div>
 

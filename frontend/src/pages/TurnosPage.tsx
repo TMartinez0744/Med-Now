@@ -34,6 +34,7 @@ type Medico = {
     sedes: string[];
     recibir_turnos: boolean;
     duracion_turno: number;
+    obras_sociales: string[];
     slots: Slot[];
 };
 
@@ -122,6 +123,15 @@ function TurnosPage() {
     const [especialidadFiltro, setEspecialidadFiltro] = useState("");
     const [diaFiltro, setDiaFiltro] = useState<number | null>(null);
     const [todasEspecialidades, setTodasEspecialidades] = useState<string[]>([]);
+    const [obraSocialPaciente, setObraSocialPaciente] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!pacienteId) return;
+        apiFetch(`/api/pacientes/${pacienteId}/ficha`)
+            .then(r => r.json())
+            .then(({ data }) => setObraSocialPaciente(data?.obra_social ?? null))
+            .catch(() => {});
+    }, [pacienteId]);
 
     // Próximos y historial
     const [proximosTurnos, setProximosTurnos] = useState<TurnoBackend[]>([]);
@@ -197,6 +207,7 @@ function TurnosPage() {
                             const slots: Slot[] = jSlots.data ?? [];
                             return {
                                 id: m.id,
+                                obras_sociales: (m as any).obras_sociales ?? [],
                                 nombre_apellido: m.profiles?.nombre_apellido ?? "Médico",
                                 especialidades: m.especialidades ?? [],
                                 sedes: m.sedes ?? [],
@@ -227,7 +238,10 @@ function TurnosPage() {
     const medicosFiltrados = medicos.filter((m) => {
         const pasaEsp = !especialidadFiltro || m.especialidades.includes(especialidadFiltro);
         const pasaDia = diaFiltro === null || m.slots.some((s) => s.dia_semana === diaFiltro);
-        return pasaEsp && pasaDia;
+        const pasaObra = !obraSocialPaciente
+            || m.obras_sociales.length === 0
+            || m.obras_sociales.includes(obraSocialPaciente);
+        return pasaEsp && pasaDia && pasaObra;
     });
 
     const abrirModal = async (medico: Medico, dia_semana: number, slots: Slot[]) => {
