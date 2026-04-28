@@ -56,4 +56,6 @@ model centros_emergencia {
   latitud     Float?
   longitud    Float?
   abierto_24h Boolean? @default(true)
+
+  tipo String @default("guardia") // guardia | farmacia
 }
