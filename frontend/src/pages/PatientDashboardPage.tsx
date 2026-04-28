@@ -98,10 +98,13 @@ function PatientDashboardPage() {
     const [draftAlergias, setDraftAlergias] = useState<HistorialItem[]>([]);
 
     // estado turnos
+<<<<<<< HEAD
     const [viewMode, setViewMode] = useState<"upcoming" | "history">("upcoming");
     const [turnos, setTurnos] = useState<TurnoPaciente[]>([]);
+=======
+    const [proximoTurno, setProximoTurno] = useState<TurnoPaciente | null>(null);
+>>>>>>> b4c16024f0eb4ebd83412e9ff1755be1c0bbdd74
     const [loadingTurnos, setLoadingTurnos] = useState(false);
-    const [cancelandoId, setCelandoId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!patientData.id) return;
@@ -130,7 +133,7 @@ function PatientDashboardPage() {
         loadHistorial();
     }, [patientData.id]);
 
-    // Cargar turnos del paciente
+    // Cargar próximo turno del paciente
     useEffect(() => {
         if (!patientData.id) return;
         setLoadingTurnos(true);
@@ -140,11 +143,12 @@ function PatientDashboardPage() {
 
         authFetch(endpoint)
             .then((r) => r.json())
-            .then(({ data }) => setTurnos(data ?? []))
+            .then(({ data }) => setProximoTurno((data ?? [])[0] ?? null))
             .catch(console.error)
             .finally(() => setLoadingTurnos(false));
     }, [patientData.id, viewMode]);
 
+<<<<<<< HEAD
     const cancelarTurno = async (id: string) => {
         if (!confirm("¿Cancelar este turno?")) return;
         setCelandoId(id);
@@ -162,6 +166,8 @@ function PatientDashboardPage() {
         }
     };
 
+=======
+>>>>>>> b4c16024f0eb4ebd83412e9ff1755be1c0bbdd74
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("patientData");
@@ -301,7 +307,7 @@ function PatientDashboardPage() {
 
                 {loadingTurnos ? (
                     <p className="empty-text">Cargando turnos...</p>
-                ) : turnos.length === 0 ? (
+                ) : !proximoTurno ? (
                     <div style={{ textAlign: "center", padding: "12px 0" }}>
                         <p className="empty-text" style={{ marginBottom: 12 }}>No tenés turnos reservados.</p>
                         <a
@@ -312,6 +318,7 @@ function PatientDashboardPage() {
                         </a>
                     </div>
                 ) : (
+<<<<<<< HEAD
                     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {turnos.map((turno) => {
                             const fecha = new Date(turno.fecha_hora);
@@ -390,6 +397,35 @@ function PatientDashboardPage() {
                             );
                         })}
                     </div>
+=======
+                    <>
+                        <div style={{
+                            background: "#f9fafb",
+                            borderRadius: 14,
+                            padding: "14px 16px",
+                            border: "1px solid #f3f4f6",
+                        }}>
+                            <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
+                                {proximoTurno.medicos?.profiles?.nombre_apellido ?? "Médico"}
+                            </p>
+                            {proximoTurno.medicos?.especialidades?.[0] && (
+                                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
+                                    {proximoTurno.medicos.especialidades[0]}
+                                </p>
+                            )}
+                            <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
+                                📅 {new Date(proximoTurno.fecha_hora).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                                {" "}&nbsp;🕐 {new Date(proximoTurno.fecha_hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                            </p>
+                        </div>
+                        <a
+                            href="/patient/turnos"
+                            style={{ display: "block", textAlign: "right", marginTop: 10, color: "#2f5cf5", fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+                        >
+                            Ver todos mis turnos →
+                        </a>
+                    </>
+>>>>>>> b4c16024f0eb4ebd83412e9ff1755be1c0bbdd74
                 )}
             </div>
 
