@@ -7,6 +7,7 @@ function PatientRegisterPage() {
     const [name, setName] = useState("");
     const [lastName, setLastName] = useState("");
     const [dni, setDni] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -16,7 +17,7 @@ function PatientRegisterPage() {
         const dniRegex = /^\d{7,8}$/;
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
-        if (!name || !lastName || !dni || !password || !confirmPassword) {
+        if (!name || !lastName || !dni || !email || !password || !confirmPassword) {
             alert("Completá todos los campos");
             return;
         }
@@ -44,6 +45,7 @@ function PatientRegisterPage() {
                 },
                 body: JSON.stringify({
                     dni,
+                    email,
                     password,
                     nombre_apellido: `${name} ${lastName}`.trim(),
                     tipo_usuario: "paciente",
@@ -108,7 +110,19 @@ function PatientRegisterPage() {
                                 const value = e.target.value.replace(/\D/g, "");
                                 setDni(value);
                             }}
-                            placeholder="DNI"
+                            placeholder="DNI sin puntos"
+                        />
+                    </div>
+
+                    <div className="auth-field">
+                        <label htmlFor="patient-email" className="auth-label">Correo Electrónico</label>
+                        <input
+                            id="patient-email"
+                            className="auth-input"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="tucorreo@ejemplo.com"
                         />
                     </div>
 

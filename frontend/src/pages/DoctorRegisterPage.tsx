@@ -8,6 +8,7 @@ function DoctorRegisterPage() {
     const [lastName, setLastName] = useState("");
     const [licenseType, setLicenseType] = useState("MN");
     const [licenseNumber, setLicenseNumber] = useState("");
+    const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -17,7 +18,7 @@ function DoctorRegisterPage() {
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
         const fullLicense = `${licenseType} ${licenseNumber.trim()}`;
 
-        if (!name || !lastName || !licenseNumber.trim() || !password || !confirmPassword) {
+        if (!name || !lastName || !licenseNumber.trim() || !email || !password || !confirmPassword) {
             alert("Completá todos los campos");
             return;
         }
@@ -45,6 +46,7 @@ function DoctorRegisterPage() {
                 },
                 body: JSON.stringify({
                     dni: fullLicense,
+                    email,
                     password,
                     nombre_apellido: `${name} ${lastName}`.trim(),
                     tipo_usuario: "medico",
@@ -134,6 +136,18 @@ function DoctorRegisterPage() {
                                 style={{ flex: 1 }}
                             />
                         </div>
+                    </div>
+
+                    <div className="auth-field">
+                        <label htmlFor="doctor-email" className="auth-label">Correo Electrónico</label>
+                        <input
+                            id="doctor-email"
+                            className="auth-input"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="tucorreo@ejemplo.com"
+                        />
                     </div>
 
                     <div className="auth-field">

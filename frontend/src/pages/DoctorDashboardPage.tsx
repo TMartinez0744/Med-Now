@@ -6,6 +6,8 @@ import locationIcon from "../assets/location_on.svg";
 import clockIcon from "../assets/access_time.svg";
 import { useState, useEffect } from "react";
 import { authFetch } from "../utils/authFetch";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const API = "http://localhost:3000/api";
 
@@ -33,6 +35,26 @@ const HOSPITALS = [
     "Hospital Alemán",
     "Sanatorio Finochietto",
 ];
+
+const overlayStyle: React.CSSProperties = {
+    position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+    backgroundColor: "rgba(0,0,0,0.5)", zIndex: 999,
+    display: "flex", justifyContent: "center", alignItems: "flex-end",
+};
+
+const modalStyle: React.CSSProperties = {
+    background: "#fff", width: "100%", maxWidth: "600px", borderTopLeftRadius: 20, borderTopRightRadius: 20,
+    padding: "24px", boxSizing: "border-box", paddingBottom: "40px",
+    animation: "slideUp 0.3s ease-out", maxHeight: "90vh", overflowY: "auto",
+};
+
+const modalHeaderStyle: React.CSSProperties = {
+    display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20,
+};
+
+const closeBtnStyle: React.CSSProperties = {
+    background: "transparent", border: "none", fontSize: 24, color: "#6b7280", cursor: "pointer",
+};
 
 type SlotDB = {
     id: string;
@@ -103,6 +125,51 @@ function DoctorDashboardPage() {
     const [turnos, setTurnos] = useState<TurnoMedico[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
     const [cancelandoId, setCelandoId] = useState<string | null>(null);
+
+    // Modal de Ficha Médica
+    const [showPatientModal, setShowPatientModal] = useState(false);
+    const [selectedPatientData, setSelectedPatientData] = useState<any>(null);
+    const [loadingPatient, setLoadingPatient] = useState(false);
+
+    const handleViewPatient = async (pacienteId: string) => {
+        setLoadingPatient(true);
+        setShowPatientModal(true);
+        try {
+            const res = await authFetch(`${API}/pacientes/${pacienteId}`);
+            if (res.ok) {
+                const json = await res.json();
+                setSelectedPatientData(json.data);
+            } else {
+                alert("Error al obtener la ficha médica.");
+                setShowPatientModal(false);
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Error de conexión.");
+            setShowPatientModal(false);
+        } finally {
+            setLoadingPatient(false);
+        }
+    };
+
+    const handleDownloadPDF = async () => {
+        const element = document.getElementById("pdf-content");
+        if (!element) return;
+
+        try {
+            const canvas = await html2canvas(element, { scale: 2 });
+            const imgData = canvas.toDataURL("image/png");
+            const pdf = new jsPDF("p", "mm", "a4");
+            const pdfWidth = pdf.internal.pageSize.getWidth();
+            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+            pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+            pdf.save(`Ficha_Medica_${selectedPatientData?.profiles?.nombre_apellido || "Paciente"}.pdf`);
+        } catch (err) {
+            console.error("Error generando PDF", err);
+            alert("No se pudo generar el PDF.");
+        }
+    };
 
     const cancelarTurno = async (id: string) => {
         if (!confirm("¿Cancelar este turno?")) return;
@@ -460,26 +527,44 @@ function DoctorDashboardPage() {
                                             {capitalize(statusLabel)}
                                         </span>
                                     </div>
-                                    {(!isPast && !isCanceled) && (
+                                    <div style={{ display: "flex", gap: "8px" }}>
                                         <button
-                                            onClick={() => cancelarTurno(turno.id)}
-                                            disabled={isCanceling}
+                                            onClick={() => handleViewPatient(turno.paciente_id)}
                                             style={{
                                                 flexShrink: 0,
                                                 padding: "7px 13px",
                                                 borderRadius: 10,
-                                                border: "1px solid #fecaca",
-                                                background: "#fff5f5",
-                                                color: "#dc2626",
+                                                border: "1px solid #bfdbfe",
+                                                background: "#eff6ff",
+                                                color: "#1d4ed8",
                                                 fontSize: 13,
                                                 fontWeight: 600,
-                                                cursor: isCanceling ? "not-allowed" : "pointer",
-                                                opacity: isCanceling ? 0.5 : 1,
+                                                cursor: "pointer",
                                             }}
                                         >
-                                            {isCanceling ? "..." : "Cancelar"}
+                                            Ver Ficha
                                         </button>
-                                    )}
+                                        {(!isPast && !isCanceled) && (
+                                            <button
+                                                onClick={() => cancelarTurno(turno.id)}
+                                                disabled={isCanceling}
+                                                style={{
+                                                    flexShrink: 0,
+                                                    padding: "7px 13px",
+                                                    borderRadius: 10,
+                                                    border: "1px solid #fecaca",
+                                                    background: "#fff5f5",
+                                                    color: "#dc2626",
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    cursor: isCanceling ? "not-allowed" : "pointer",
+                                                    opacity: isCanceling ? 0.5 : 1,
+                                                }}
+                                            >
+                                                {isCanceling ? "..." : "Cancelar"}
+                                            </button>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })}
@@ -719,6 +804,89 @@ function DoctorDashboardPage() {
             </div>
 
             <Navbar role="doctor" />
+            {/* Modal de Ficha Médica del Paciente */}
+            {showPatientModal && (
+                <div style={overlayStyle} onClick={() => setShowPatientModal(false)}>
+                    <div style={{ ...modalStyle, maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, fontSize: 18 }}>Ficha Médica</h3>
+                            <button onClick={() => setShowPatientModal(false)} style={closeBtnStyle}>✕</button>
+                        </div>
+                        
+                        {loadingPatient ? (
+                            <p style={{ textAlign: "center", color: "#6b7280" }}>Cargando datos del paciente...</p>
+                        ) : selectedPatientData ? (
+                            <>
+                                <div id="pdf-content" style={{ padding: "10px", background: "white", borderRadius: "8px" }}>
+                                    <div style={{ textAlign: "center", marginBottom: "20px", borderBottom: "2px solid #2f5cf5", paddingBottom: "10px" }}>
+                                        <h2 style={{ margin: "0", color: "#2f5cf5", fontSize: "24px" }}>MedNow</h2>
+                                        <p style={{ margin: "5px 0 0", color: "#6b7280", fontSize: "14px" }}>Historial Clínico Digital</p>
+                                    </div>
+                                    
+                                    <div style={{ marginBottom: "20px" }}>
+                                        <h4 style={{ margin: "0 0 5px", color: "#111827", fontSize: "16px" }}>Datos del Paciente</h4>
+                                        <p style={{ margin: "2px 0", fontSize: "14px", color: "#374151" }}><strong>Nombre:</strong> {selectedPatientData.profiles?.nombre_apellido || "N/A"}</p>
+                                        <p style={{ margin: "2px 0", fontSize: "14px", color: "#374151" }}><strong>DNI:</strong> {selectedPatientData.profiles?.dni || "N/A"}</p>
+                                        <p style={{ margin: "2px 0", fontSize: "14px", color: "#374151" }}><strong>Obra Social:</strong> {selectedPatientData.obra_social || "No especificada"}</p>
+                                    </div>
+
+                                    <div style={{ marginBottom: "20px" }}>
+                                        <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: "16px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>Condiciones Médicas</h4>
+                                        {selectedPatientData.ficha_medica?.condiciones && selectedPatientData.ficha_medica.condiciones.length > 0 ? (
+                                            <ul style={{ margin: 0, paddingLeft: "20px", color: "#374151", fontSize: "14px" }}>
+                                                {selectedPatientData.ficha_medica.condiciones.map((c: any) => (
+                                                    <li key={c.id} style={{ marginBottom: "4px" }}>{c.label}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p style={{ margin: 0, color: "#6b7280", fontSize: "14px", fontStyle: "italic" }}>Ninguna registrada.</p>
+                                        )}
+                                    </div>
+
+                                    <div style={{ marginBottom: "20px" }}>
+                                        <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: "16px", borderBottom: "1px solid #e5e7eb", paddingBottom: "4px" }}>Alergias</h4>
+                                        {selectedPatientData.ficha_medica?.alergias && selectedPatientData.ficha_medica.alergias.length > 0 ? (
+                                            <ul style={{ margin: 0, paddingLeft: "20px", color: "#b45309", fontSize: "14px" }}>
+                                                {selectedPatientData.ficha_medica.alergias.map((a: any) => (
+                                                    <li key={a.id} style={{ marginBottom: "4px" }}>{a.label}</li>
+                                                ))}
+                                            </ul>
+                                        ) : (
+                                            <p style={{ margin: 0, color: "#6b7280", fontSize: "14px", fontStyle: "italic" }}>Ninguna registrada.</p>
+                                        )}
+                                    </div>
+                                    
+                                    <div style={{ marginTop: "30px", fontSize: "11px", color: "#9ca3af", textAlign: "center", borderTop: "1px solid #f3f4f6", paddingTop: "10px" }}>
+                                        Documento generado automáticamente por MedNow el {new Date().toLocaleDateString("es-AR")}
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+                                    <button 
+                                        onClick={() => setShowPatientModal(false)}
+                                        style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "1px solid #d1d5db", background: "white", color: "#374151", fontWeight: 600, cursor: "pointer" }}
+                                    >
+                                        Cerrar
+                                    </button>
+                                    <button 
+                                        onClick={handleDownloadPDF}
+                                        style={{ flex: 1, padding: "12px", borderRadius: "10px", border: "none", background: "#10b981", color: "white", fontWeight: 600, cursor: "pointer", display: "flex", justifyContent: "center", alignItems: "center", gap: "8px" }}
+                                    >
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                            <polyline points="7 10 12 15 17 10"></polyline>
+                                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                                        </svg>
+                                        Exportar PDF
+                                    </button>
+                                </div>
+                            </>
+                        ) : (
+                            <p style={{ textAlign: "center", color: "#ef4444" }}>Datos no encontrados.</p>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

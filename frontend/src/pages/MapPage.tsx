@@ -72,8 +72,8 @@ function MapPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const role = user.tipo_usuario === "medico" ? "doctor" : "patient";
+    const isDoctor = localStorage.getItem("doctorData") !== null;
+    const role = isDoctor ? "doctor" : "patient";
 
     useEffect(() => {
         const token = localStorage.getItem("token");
