@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabase";
+import { apiFetch } from "../lib/api";
 
 interface Props {
     pacienteId: string;
@@ -21,19 +21,20 @@ function FichaPaciente({ pacienteId, nombrePaciente, onClose }: Props) {
 
     useEffect(() => {
         const fetch = async () => {
-            const [{ data: profile }, { data: paciente }] = await Promise.all([
-                supabase.from("profiles").select("nombre_apellido, dni").eq("id", pacienteId).single(),
-                supabase.from("pacientes").select("obra_social, ficha_medica").eq("id", pacienteId).single(),
-            ]);
-
-            const fm = paciente?.ficha_medica as any;
-            setFicha({
-                nombre_apellido: profile?.nombre_apellido ?? nombrePaciente ?? "Paciente",
-                dni: profile?.dni ?? "-",
-                obra_social: paciente?.obra_social ?? null,
-                condiciones: fm?.condiciones ?? [],
-                alergias: fm?.alergias ?? [],
-            });
+            try {
+                const res = await apiFetch(`/api/pacientes/${pacienteId}/ficha`);
+                const { data } = await res.json();
+                const fm = data?.ficha_medica as any;
+                setFicha({
+                    nombre_apellido: data?.nombre_apellido ?? nombrePaciente ?? "Paciente",
+                    dni: data?.dni ?? "-",
+                    obra_social: data?.obra_social ?? null,
+                    condiciones: fm?.condiciones ?? [],
+                    alergias: fm?.alergias ?? [],
+                });
+            } catch {
+                setFicha({ nombre_apellido: nombrePaciente ?? "Paciente", dni: "-", obra_social: null, condiciones: [], alergias: [] });
+            }
             setLoading(false);
         };
         fetch();

@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
-import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
 
@@ -78,16 +77,20 @@ function PatientDashboardPage() {
         if (!draftName.trim()) return;
         setSavingName(true);
         const nombreCompleto = `${draftName.trim()} ${draftLastName.trim()}`.trim();
-        const { error } = await supabase
-            .from("profiles")
-            .update({ nombre_apellido: nombreCompleto })
-            .eq("id", patientData.id);
-        if (!error) {
-            const updated = { ...patientData, name: draftName.trim(), lastName: draftLastName.trim(), nombre_apellido: nombreCompleto };
-            localStorage.setItem("patientData", JSON.stringify(updated));
-            setDisplayName(`${capitalize(draftName.trim())} ${capitalize(draftLastName.trim())}`);
-            setShowEditProfileModal(false);
-        } else {
+        try {
+            const res = await apiFetch(`/api/profiles/${patientData.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ nombre_apellido: nombreCompleto }),
+            });
+            if (res.ok) {
+                const updated = { ...patientData, name: draftName.trim(), lastName: draftLastName.trim(), nombre_apellido: nombreCompleto };
+                localStorage.setItem("patientData", JSON.stringify(updated));
+                setDisplayName(`${capitalize(draftName.trim())} ${capitalize(draftLastName.trim())}`);
+                setShowEditProfileModal(false);
+            } else {
+                showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+            }
+        } catch {
             showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
         }
         setSavingName(false);
@@ -121,24 +124,21 @@ function PatientDashboardPage() {
         if (!patientData.id) return;
 
         const loadHistorial = async () => {
-            const { data, error } = await supabase
-                .from("pacientes")
-                .select("obra_social, ficha_medica")
-                .eq("id", patientData.id)
-                .single();
-
-            if (data) {
-                if (data.obra_social) setObraSocial(data.obra_social);
-                
-                const ficha = data.ficha_medica as any;
-                if (ficha) {
-                    if (ficha.condiciones) setCondiciones(ficha.condiciones);
-                    if (ficha.alergias) setAlergias(ficha.alergias);
-                } else {
-                    setCondiciones([]);
-                    setAlergias([]);
+            try {
+                const res = await apiFetch(`/api/pacientes/${patientData.id}/ficha`);
+                const { data } = await res.json();
+                if (data) {
+                    if (data.obra_social) setObraSocial(data.obra_social);
+                    const ficha = data.ficha_medica as any;
+                    if (ficha) {
+                        if (ficha.condiciones) setCondiciones(ficha.condiciones);
+                        if (ficha.alergias) setAlergias(ficha.alergias);
+                    } else {
+                        setCondiciones([]);
+                        setAlergias([]);
+                    }
                 }
-            } else if (error) {
+            } catch (error) {
                 console.error("Error loading historial:", error);
             }
         };
@@ -205,25 +205,16 @@ function PatientDashboardPage() {
             return;
         }
 
-        const { data: updated, error } = await supabase
-            .from("pacientes")
-            .update({ 
-                ficha_medica: { 
-                    condiciones: draftCondiciones, 
-                    alergias: draftAlergias 
-                } 
-            })
-            .eq("id", patientData.id)
-            .select();
-
-        if (error) {
-            console.error("Error guardando historial:", error);
+        try {
+            const res = await apiFetch(`/api/pacientes/${patientData.id}/historial`, {
+                method: "PATCH",
+                body: JSON.stringify({ ficha_medica: { condiciones: draftCondiciones, alergias: draftAlergias } }),
+            });
+            if (!res.ok) {
+                showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+            }
+        } catch {
             showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
-        } else if (!updated || updated.length === 0) {
-            console.error("UPDATE sin efecto — el ID no coincide con ningún paciente:", patientData.id);
-            showToast("Sesión inválida. Por favor volvé a iniciar sesión.");
-        } else {
-            console.log("Historial guardado correctamente ✅", updated);
         }
     };
 
@@ -428,14 +419,14 @@ function PatientDashboardPage() {
                                 filteredObras.map((o) => (
                                     <button
                                         key={o}
-                                        onClick={async () => { 
-                                            setObraSocial(o); 
-                                            setShowObraModal(false); 
+                                        onClick={async () => {
+                                            setObraSocial(o);
+                                            setShowObraModal(false);
                                             if (patientData.id) {
-                                                await supabase
-                                                    .from("pacientes")
-                                                    .update({ obra_social: o })
-                                                    .eq("id", patientData.id);
+                                                await apiFetch(`/api/pacientes/${patientData.id}/obra-social`, {
+                                                    method: "PATCH",
+                                                    body: JSON.stringify({ obra_social: o }),
+                                                });
                                             }
                                         }}
                                         style={{

@@ -5,7 +5,6 @@ import biotechIcon from "../assets/biotech.svg";
 import locationIcon from "../assets/location_on.svg";
 import clockIcon from "../assets/access_time.svg";
 import React, { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
 import FichaPaciente from "../components/FichaPaciente";
@@ -89,16 +88,20 @@ function DoctorDashboardPage() {
     const saveProfileName = async () => {
         if (!draftNombre.trim()) return;
         setSavingName(true);
-        const { error } = await supabase
-            .from("profiles")
-            .update({ nombre_apellido: draftNombre.trim() })
-            .eq("id", medicoId);
-        if (!error) {
-            const updated = { ...doctorData, nombre_apellido: draftNombre.trim() };
-            localStorage.setItem("doctorData", JSON.stringify(updated));
-            setDisplayName(buildDoctorName(draftNombre.trim()));
-            setShowEditProfileModal(false);
-        } else {
+        try {
+            const res = await apiFetch(`/api/profiles/${medicoId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ nombre_apellido: draftNombre.trim() }),
+            });
+            if (res.ok) {
+                const updated = { ...doctorData, nombre_apellido: draftNombre.trim() };
+                localStorage.setItem("doctorData", JSON.stringify(updated));
+                setDisplayName(buildDoctorName(draftNombre.trim()));
+                setShowEditProfileModal(false);
+            } else {
+                showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+            }
+        } catch {
             showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
         }
         setSavingName(false);
