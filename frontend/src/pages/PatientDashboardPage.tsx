@@ -3,6 +3,7 @@ import Navbar from "../components/Navbar";
 import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
 import { supabase } from "../lib/supabase";
+import { authFetch } from "../utils/authFetch";
 
 const API = "http://localhost:3000/api";
 
@@ -58,6 +59,14 @@ function PatientDashboardPage() {
     const navigate = useNavigate();
     const patientData = JSON.parse(localStorage.getItem("patientData") || "{}");
 
+    // Redirect to login if unauthenticated
+    useEffect(() => {
+        const token = localStorage.getItem("token");
+        if (!token || !patientData.id) {
+            navigate("/login/patient");
+        }
+    }, [navigate, patientData.id]);
+
     const capitalize = (text: string): string => {
         if (!text) return "";
         return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
@@ -89,6 +98,7 @@ function PatientDashboardPage() {
     const [draftAlergias, setDraftAlergias] = useState<HistorialItem[]>([]);
 
     // estado turnos
+    const [viewMode, setViewMode] = useState<"upcoming" | "history">("upcoming");
     const [turnos, setTurnos] = useState<TurnoPaciente[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
     const [cancelandoId, setCelandoId] = useState<string | null>(null);
@@ -97,11 +107,9 @@ function PatientDashboardPage() {
         if (!patientData.id) return;
 
         const loadHistorial = async () => {
-            const { data, error } = await supabase
-                .from("pacientes")
-                .select("obra_social, ficha_medica")
-                .eq("id", patientData.id)
-                .single();
+            const { data, error } = await authFetch(`${API}/pacientes/${patientData.id}`)
+                .then((r) => r.json())
+                .catch((e) => ({ error: e }));
 
             if (data) {
                 if (data.obra_social) setObraSocial(data.obra_social);
@@ -126,18 +134,22 @@ function PatientDashboardPage() {
     useEffect(() => {
         if (!patientData.id) return;
         setLoadingTurnos(true);
-        fetch(`${API}/pacientes/${patientData.id}/turnos`)
+        const endpoint = viewMode === "history" 
+            ? `${API}/pacientes/${patientData.id}/turnos/historial`
+            : `${API}/pacientes/${patientData.id}/turnos`;
+
+        authFetch(endpoint)
             .then((r) => r.json())
             .then(({ data }) => setTurnos(data ?? []))
             .catch(console.error)
             .finally(() => setLoadingTurnos(false));
-    }, [patientData.id]);
+    }, [patientData.id, viewMode]);
 
     const cancelarTurno = async (id: string) => {
         if (!confirm("¿Cancelar este turno?")) return;
         setCelandoId(id);
         try {
-            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            const res = await authFetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
             if (res.ok) {
                 setTurnos((prev) => prev.filter((t) => t.id !== id));
             } else {
@@ -197,25 +209,28 @@ function PatientDashboardPage() {
             return;
         }
 
-        const { data: updated, error } = await supabase
-            .from("pacientes")
-            .update({ 
-                ficha_medica: { 
-                    condiciones: draftCondiciones, 
-                    alergias: draftAlergias 
-                } 
-            })
-            .eq("id", patientData.id)
-            .select();
-
-        if (error) {
-            console.error("Error guardando historial:", error);
-            alert("Error al guardar: " + error.message);
-        } else if (!updated || updated.length === 0) {
-            console.error("UPDATE sin efecto — el ID no coincide con ningún paciente:", patientData.id);
-            alert("Error: el ID de paciente no se encontró en la base de datos. Volvé a iniciar sesión.");
-        } else {
-            console.log("Historial guardado correctamente ✅", updated);
+        try {
+            const res = await authFetch(`${API}/pacientes/${patientData.id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    ficha_medica: {
+                        condiciones: draftCondiciones,
+                        alergias: draftAlergias
+                    }
+                })
+            });
+            const result = await res.json();
+            
+            if (!res.ok) {
+                console.error("Error guardando historial:", result.message);
+                alert("Error al guardar: " + result.message);
+            } else {
+                console.log("Historial guardado correctamente ✅", result.data);
+            }
+        } catch (error) {
+            console.error("Error en la petición:", error);
+            alert("Error al conectar con el servidor.");
         }
     };
 
@@ -238,14 +253,50 @@ function PatientDashboardPage() {
 
             {/*Card Mis Turnos*/}
             <div className="dashboard-card">
-                <div className="profile-block-header" style={{ marginBottom: 14 }}>
-                    <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
-                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                        <line x1="16" y1="2" x2="16" y2="6" />
-                        <line x1="8" y1="2" x2="8" y2="6" />
-                        <line x1="3" y1="10" x2="21" y2="10" />
-                    </svg>
-                    <h3 style={{ margin: 0, fontSize: 18, color: "#111827" }}>Mis Turnos</h3>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <div className="profile-block-header" style={{ marginBottom: 0 }}>
+                        <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        <h3 style={{ margin: 0, fontSize: 18, color: "#111827" }}>Mis Turnos</h3>
+                    </div>
+                    <div style={{ display: "flex", background: "#f3f4f6", borderRadius: "8px", padding: "4px" }}>
+                        <button
+                            onClick={() => setViewMode("upcoming")}
+                            style={{
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                border: "none",
+                                fontSize: "14px",
+                                fontWeight: 500,
+                                cursor: "pointer",
+                                background: viewMode === "upcoming" ? "#ffffff" : "transparent",
+                                color: viewMode === "upcoming" ? "#111827" : "#6b7280",
+                                boxShadow: viewMode === "upcoming" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                            }}
+                        >
+                            Próximos
+                        </button>
+                        <button
+                            onClick={() => setViewMode("history")}
+                            style={{
+                                padding: "6px 12px",
+                                borderRadius: "6px",
+                                border: "none",
+                                fontSize: "14px",
+                                fontWeight: 500,
+                                cursor: "pointer",
+                                background: viewMode === "history" ? "#ffffff" : "transparent",
+                                color: viewMode === "history" ? "#111827" : "#6b7280",
+                                boxShadow: viewMode === "history" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                            }}
+                        >
+                            Historial
+                        </button>
+                    </div>
                 </div>
 
                 {loadingTurnos ? (
@@ -267,6 +318,11 @@ function PatientDashboardPage() {
                             const nombreMedico = turno.medicos?.profiles?.nombre_apellido ?? "Médico";
                             const especialidad = turno.medicos?.especialidades?.[0] ?? "";
                             const isCanceling = cancelandoId === turno.id;
+                            const isPast = fecha.getTime() < Date.now();
+                            const isCanceled = turno.estado === "cancelado";
+                            // Se muestra como completado si ya pasó la fecha y NO está cancelado
+                            const statusLabel = isCanceled ? "Cancelado" : isPast ? "Completado" : turno.estado;
+                            
                             return (
                                 <div
                                     key={turno.id}
@@ -279,12 +335,27 @@ function PatientDashboardPage() {
                                         justifyContent: "space-between",
                                         alignItems: "center",
                                         gap: 12,
+                                        opacity: (isPast || isCanceled) ? 0.7 : 1,
                                     }}
                                 >
                                     <div>
-                                        <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                            {nombreMedico}
-                                        </p>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                                            <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: "#111827" }}>
+                                                {nombreMedico}
+                                            </p>
+                                            {viewMode === "history" && (
+                                                <span style={{
+                                                    fontSize: 11,
+                                                    padding: "2px 8px",
+                                                    borderRadius: 999,
+                                                    fontWeight: 600,
+                                                    background: isCanceled ? "#fee2e2" : isPast ? "#e0e7ff" : "#d1fae5",
+                                                    color: isCanceled ? "#991b1b" : isPast ? "#3730a3" : "#065f46"
+                                                }}>
+                                                    {capitalize(statusLabel)}
+                                                </span>
+                                            )}
+                                        </div>
                                         {especialidad && (
                                             <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
                                                 {especialidad}
@@ -295,24 +366,26 @@ function PatientDashboardPage() {
                                             {" "}&nbsp;🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={() => cancelarTurno(turno.id)}
-                                        disabled={isCanceling}
-                                        style={{
-                                            flexShrink: 0,
-                                            padding: "7px 13px",
-                                            borderRadius: 10,
-                                            border: "1px solid #fecaca",
-                                            background: "#fff5f5",
-                                            color: "#dc2626",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            cursor: isCanceling ? "not-allowed" : "pointer",
-                                            opacity: isCanceling ? 0.5 : 1,
-                                        }}
-                                    >
-                                        {isCanceling ? "..." : "Cancelar"}
-                                    </button>
+                                    {(!isPast && !isCanceled) && (
+                                        <button
+                                            onClick={() => cancelarTurno(turno.id)}
+                                            disabled={isCanceling}
+                                            style={{
+                                                flexShrink: 0,
+                                                padding: "7px 13px",
+                                                borderRadius: 10,
+                                                border: "1px solid #fecaca",
+                                                background: "#fff5f5",
+                                                color: "#dc2626",
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                cursor: isCanceling ? "not-allowed" : "pointer",
+                                                opacity: isCanceling ? 0.5 : 1,
+                                            }}
+                                        >
+                                            {isCanceling ? "..." : "Cancelar"}
+                                        </button>
+                                    )}
                                 </div>
                             );
                         })}
@@ -453,10 +526,11 @@ function PatientDashboardPage() {
                                             setObraSocial(o); 
                                             setShowObraModal(false); 
                                             if (patientData.id) {
-                                                await supabase
-                                                    .from("pacientes")
-                                                    .update({ obra_social: o })
-                                                    .eq("id", patientData.id);
+                                                await authFetch(`${API}/pacientes/${patientData.id}`, {
+                                                    method: "PUT",
+                                                    headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ obra_social: o })
+                                                });
                                             }
                                         }}
                                         style={{

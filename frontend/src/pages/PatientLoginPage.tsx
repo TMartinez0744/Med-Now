@@ -47,8 +47,18 @@ function PatientLoginPage() {
                 return;
             }
 
+            if (result.user.tipo_usuario !== "paciente") {
+                alert("Error: Esta cuenta pertenece a un médico. Por favor, iniciá sesión en el portal de médicos.");
+                return;
+            }
+
             // Limpiar cualquier sesión previa de otro rol
             localStorage.removeItem("doctorData");
+
+            // Guardar token JWT
+            if (result.token) {
+                localStorage.setItem("token", result.token);
+            }
 
             // Guardar datos del paciente
             localStorage.setItem("user", dni);

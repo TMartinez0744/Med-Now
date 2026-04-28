@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
+import { authFetch } from "../utils/authFetch";
 
 const API = "http://localhost:3000/api";
 
@@ -23,6 +24,7 @@ type Slot = {
     dia_semana: number;
     hora_inicio: string;
     hora_fin: string;
+    sede?: string;
 };
 
 type Medico = {
@@ -106,7 +108,7 @@ function TurnosPage() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const rMedicos = await fetch(`${API}/medicos`);
+                const rMedicos = await authFetch(`${API}/medicos`);
                 const jMedicos = await rMedicos.json();
                 const listaMedicos: Array<{
                     id: string; especialidades: string[]; sedes: string[];
@@ -117,7 +119,7 @@ function TurnosPage() {
                     listaMedicos
                         .filter((m) => m.recibir_turnos)
                         .map(async (m) => {
-                            const rSlots = await fetch(`${API}/medicos/${m.id}/disponibilidad`);
+                            const rSlots = await authFetch(`${API}/medicos/${m.id}/disponibilidad`);
                             const jSlots = await rSlots.json();
                             return {
                                 id: m.id,
@@ -161,7 +163,7 @@ function TurnosPage() {
         setFechasOcupadas([]);
 
         try {
-            const r = await fetch(`${API}/medicos/${medico.id}/turnos`);
+            const r = await authFetch(`${API}/medicos/${medico.id}/turnos`);
             const j = await r.json();
             const ocupados = (j.data || []).map((t: any) => new Date(t.fecha_hora).toISOString());
             setTurnosOcupados(ocupados);
@@ -193,7 +195,7 @@ function TurnosPage() {
         try {
             const fecha_hora = buildFechaHora(fechaSeleccionada, horaSeleccionada);
 
-            const response = await fetch(`${API}/turnos`, {
+            const response = await authFetch(`${API}/turnos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -376,6 +378,7 @@ function TurnosPage() {
                                                 </span>
                                                 <span style={{ fontSize: 14, color: "#6b7280", marginLeft: 8 }}>
                                                     {slot.hora_inicio.slice(0, 5)} – {slot.hora_fin.slice(0, 5)} hs
+                                                    {slot.sede ? ` · ${slot.sede}` : ""}
                                                 </span>
                                             </div>
                                             <button
@@ -462,6 +465,7 @@ function TurnosPage() {
                                     </p>
                                     <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
                                         {DIA_NOMBRE[reserva.slot.dia_semana]} · {reserva.slot.hora_inicio.slice(0, 5)} – {reserva.slot.hora_fin.slice(0, 5)} hs
+                                        {reserva.slot.sede ? ` en ${reserva.slot.sede}` : ""}
                                     </p>
                                 </div>
 

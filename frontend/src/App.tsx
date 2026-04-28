@@ -8,6 +8,8 @@ import DoctorRegisterPage from "./pages/DoctorRegisterPage";
 import PatientDashboardPage from "./pages/PatientDashboardPage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
 import TurnosPage from "./pages/TurnosPage";
+import ChatPage from "./pages/ChatPage";
+import MapPage from "./pages/MapPage";
 
 
 function App() {
@@ -22,6 +24,8 @@ function App() {
         <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
         <Route path="/doctor/dashboard" element={<DoctorDashboardPage />} />
         <Route path="/patient/turnos" element={<TurnosPage />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/mapa" element={<MapPage />} />
       </Routes>
     </BrowserRouter>
   );

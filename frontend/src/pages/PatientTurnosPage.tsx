@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
+import { authFetch } from "../utils/authFetch";
 
 const API = "http://localhost:3000/api";
 
@@ -63,7 +64,7 @@ function PatientTurnosPage() {
 
     useEffect(() => {
         setLoadingDoctors(true);
-        fetch(`${API}/medicos`)
+        authFetch(`${API}/medicos`)
             .then((r) => r.json())
             .then(({ data }) => {
                 const mapped: Doctor[] = (data ?? []).map((d: any) => ({
