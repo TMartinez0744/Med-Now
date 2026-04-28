@@ -1,10 +1,11 @@
 const supabase = require('../config/supabase');
+const supabaseSedes = require('../config/supabaseSedes');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 
 const register = async (req, res) => {
-    const { dni, password, nombre_apellido, tipo_usuario } = req.body;
+    const { dni, password, nombre_apellido, tipo_usuario, genero, fecha_nacimiento, email } = req.body;
 
     if (!dni || !password || !nombre_apellido || !tipo_usuario) {
         return res.status(400).json({ message: 'Faltan datos obligatorios' });
@@ -53,6 +54,12 @@ const register = async (req, res) => {
             await supabase.from('disponibilidad').insert(defaultDisponibilidad);
         } else if (tipo_usuario === 'paciente') {
             await supabase.from('pacientes').insert([{ id: userId, obra_social: null }]);
+            await supabaseSedes.from('paciente_perfil').insert([{
+                paciente_id: userId,
+                genero: genero || null,
+                fecha_nacimiento: fecha_nacimiento || null,
+                email: email || null,
+            }]);
         }
 
         return res.status(201).json({ message: 'Registro exitoso' });
