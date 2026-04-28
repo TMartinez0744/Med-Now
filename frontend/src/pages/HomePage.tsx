@@ -12,15 +12,17 @@ function HomePage() {
                 </p>
 
                 <div className="home-buttons">
+                    <Link to="/mapa-emergencias" >
+                    <button>Ver mapa de guardias y farmacias</button>
+                    </Link>
                     <Link to="/login/patient" className="home-link">
                         <button className="home-button primary">Soy Paciente</button>
                     </Link>
-
                     <Link to="/login/doctor" className="home-link">
                         <button className="home-button secondary">Soy Médico</button>
                     </Link>
                 </div>
-            </div>
+            </div>g
         </div>
     );
 }
