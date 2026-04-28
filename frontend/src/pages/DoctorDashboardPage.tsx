@@ -171,6 +171,7 @@ function DoctorDashboardPage() {
         }
     };
 
+    const [duracionTurno, setDuracionTurno] = useState<number>(30);
     const [isEditingSchedule, setIsEditingSchedule] = useState(false);
     const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [savingSchedule, setSavingSchedule] = useState(false);
@@ -223,6 +224,7 @@ function DoctorDashboardPage() {
             .then(({ data }: { data: SlotDB[] }) => {
                 console.log('[load disponibilidad]', data);
                 if (!data || data.length === 0) return;
+                if (data[0]?.duracion_turno) setDuracionTurno(data[0].duracion_turno);
 
                 const bySedeDay: Record<string, Record<string, Interval[]>> = {};
                 data.forEach((slot) => {
@@ -396,6 +398,7 @@ function DoctorDashboardPage() {
                                 hora_inicio: interval.from,
                                 hora_fin: interval.to,
                                 sede: selectedSede,
+                                duracion_turno: duracionTurno,
                             }),
                         }).then((r) => r.json())
                     );
@@ -632,6 +635,30 @@ function DoctorDashboardPage() {
                     <p style={{ padding: "0 1rem 0.5rem", fontSize: "0.9rem" }}>{scheduleMsg}</p>
                 )}
 
+                {/* Duración del turno */}
+                <div style={{ padding: "0 1rem 1rem" }}>
+                    <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Duración de cada turno</p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        {[15, 30, 45, 60].map((min) => (
+                            <button
+                                key={min}
+                                onClick={() => isEditingSchedule && setDuracionTurno(min)}
+                                style={{
+                                    padding: "8px 16px", borderRadius: 10, cursor: isEditingSchedule ? "pointer" : "default",
+                                    border: duracionTurno === min ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
+                                    background: duracionTurno === min ? "#eef3ff" : "#f9fafb",
+                                    color: duracionTurno === min ? "#2f5cf5" : "#6b7280",
+                                    fontWeight: duracionTurno === min ? 700 : 500,
+                                    fontSize: 14,
+                                    opacity: !isEditingSchedule && duracionTurno !== min ? 0.5 : 1,
+                                }}
+                            >
+                                {min === 60 ? "1 h" : `${min} min`}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
                 {hospitals.length === 0 ? (
                     <p className="empty-text" style={{ padding: "0 1rem 1rem" }}>
                         Agregá al menos una sede de atención para configurar horarios.
@@ -788,6 +815,9 @@ function DoctorDashboardPage() {
             {fichaAbierta && (
                 <FichaPaciente
                     pacienteId={fichaAbierta.id}
+                    medicoId={medicoId}
+                    nombreMedico={doctorData.nombre_apellido ?? "Médico"}
+                    matriculaMedico={doctorData.licenseNumber ?? undefined}
                     nombrePaciente={fichaAbierta.nombre}
                     onClose={() => setFichaAbierta(null)}
                 />
