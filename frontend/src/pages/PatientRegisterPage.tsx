@@ -1,5 +1,9 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
+import { showToast } from "../lib/toast";
+
+const GENEROS = ["Femenino", "Masculino", "No binario"] as const;
+type Genero = typeof GENEROS[number];
 
 function PatientRegisterPage() {
     const navigate = useNavigate();
@@ -7,6 +11,9 @@ function PatientRegisterPage() {
     const [name, setName] = useState("");
     const [lastName, setLastName] = useState("");
     const [dni, setDni] = useState("");
+    const [email, setEmail] = useState("");
+    const [fechaNacimiento, setFechaNacimiento] = useState("");
+    const [genero, setGenero] = useState<Genero | "">("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -14,54 +21,61 @@ function PatientRegisterPage() {
         e.preventDefault();
 
         const dniRegex = /^\d{7,8}$/;
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         const passwordRegex = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
 
-        if (!name || !lastName || !dni || !password || !confirmPassword) {
-            alert("Completá todos los campos");
+        if (!name || !lastName || !dni || !email || !fechaNacimiento || !genero || !password || !confirmPassword) {
+            showToast("Completá todos los campos");
             return;
         }
 
         if (!dniRegex.test(dni)) {
-            alert("El DNI debe tener 7 u 8 números");
+            showToast("El DNI debe tener 7 u 8 números");
+            return;
+        }
+
+        if (!emailRegex.test(email)) {
+            showToast("El email no es válido");
             return;
         }
 
         if (!passwordRegex.test(password)) {
-            alert("La contraseña debe tener al menos 8 caracteres, una letra y un número");
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número");
             return;
         }
 
         if (password !== confirmPassword) {
-            alert("Las contraseñas no coinciden");
+            showToast("Las contraseñas no coinciden");
             return;
         }
 
         try {
             const response = await fetch("http://localhost:3000/api/auth/register", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     dni,
                     password,
                     nombre_apellido: `${name} ${lastName}`.trim(),
                     tipo_usuario: "paciente",
+                    genero,
+                    fecha_nacimiento: fechaNacimiento,
+                    email,
                 }),
             });
 
             const result = await response.json();
 
             if (!response.ok) {
-                alert("Error: " + result.message);
+                showToast("Error: " + result.message);
                 return;
             }
 
-            alert("Registro exitoso");
+            showToast("Registro exitoso", "success");
             navigate("/login/patient");
         } catch (error) {
             console.error(error);
-            alert("Error al conectar con el backend");
+            showToast("Algo salió mal. Intentá de nuevo.");
         }
     };
 
@@ -105,12 +119,58 @@ function PatientRegisterPage() {
                             type="text"
                             inputMode="numeric"
                             value={dni}
-                            onChange={(e) => {
-                                const value = e.target.value.replace(/\D/g, "");
-                                setDni(value);
-                            }}
+                            onChange={(e) => setDni(e.target.value.replace(/\D/g, ""))}
                             placeholder="DNI"
                         />
+                    </div>
+
+                    <div className="auth-field">
+                        <label htmlFor="patient-email" className="auth-label">Email</label>
+                        <input
+                            id="patient-email"
+                            className="auth-input"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            placeholder="ejemplo@mail.com"
+                        />
+                    </div>
+
+                    <div className="auth-field">
+                        <label htmlFor="patient-nacimiento" className="auth-label">Fecha de nacimiento</label>
+                        <input
+                            id="patient-nacimiento"
+                            className="auth-input"
+                            type="date"
+                            value={fechaNacimiento}
+                            onChange={(e) => setFechaNacimiento(e.target.value)}
+                            max={new Date().toISOString().slice(0, 10)}
+                        />
+                    </div>
+
+                    <div className="auth-field">
+                        <label className="auth-label">Género</label>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
+                            {GENEROS.map((g) => (
+                                <button
+                                    key={g}
+                                    type="button"
+                                    onClick={() => setGenero(g)}
+                                    style={{
+                                        padding: "9px 18px",
+                                        borderRadius: 10,
+                                        border: genero === g ? "2px solid #2f5cf5" : "1.5px solid #e5e7eb",
+                                        background: genero === g ? "#eef3ff" : "white",
+                                        color: genero === g ? "#2f5cf5" : "#374151",
+                                        fontWeight: genero === g ? 700 : 500,
+                                        fontSize: 14,
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    {g}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <div className="auth-field">
@@ -126,9 +186,7 @@ function PatientRegisterPage() {
                     </div>
 
                     <div className="auth-field">
-                        <label htmlFor="patient-confirm-password" className="auth-label">
-                            Confirmar contraseña
-                        </label>
+                        <label htmlFor="patient-confirm-password" className="auth-label">Confirmar contraseña</label>
                         <input
                             id="patient-confirm-password"
                             className="auth-input"

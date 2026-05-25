@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Navbar from "../components/Navbar";
+import { apiFetch } from "../lib/api";
 
-const API = "http://localhost:3000/api";
 const DEFAULT_ASSISTANT_NAME = "AlivIA";
 
 type ChatMessage = {
@@ -25,7 +25,7 @@ function PatientChatPage() {
 
     useEffect(() => {
         let active = true;
-        fetch(`${API}/chat/info`)
+        apiFetch("/api/chat/info")
             .then((r) => r.json())
             .then((res) => {
                 if (!active) return;
@@ -66,9 +66,8 @@ function PatientChatPage() {
 
         try {
             const conversationMessages = newMessages.slice(1);
-            const response = await fetch(`${API}/chat`, {
+            const response = await apiFetch("/api/chat", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ messages: conversationMessages }),
             });
             const data = await response.json();

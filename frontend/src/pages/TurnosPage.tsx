@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
-
-const API = "http://localhost:3000/api";
+import { apiFetch } from "../lib/api";
+import { showToast } from "../lib/toast";
 
 const DIAS_SEMANA = [
     { label: "Dom", index: 0 },
@@ -23,6 +23,8 @@ type Slot = {
     dia_semana: number;
     hora_inicio: string;
     hora_fin: string;
+    sede: string | null;
+    duracion_turno: number;
 };
 
 type Medico = {
@@ -31,12 +33,16 @@ type Medico = {
     especialidades: string[];
     sedes: string[];
     recibir_turnos: boolean;
+    duracion_turno: number;
+    obras_sociales: string[];
     slots: Slot[];
 };
 
 type ReservaPendiente = {
     medico: Medico;
-    slot: Slot;
+    dia_semana: number;
+    slots: Slot[];
+    sedesDelDia: string[];
 };
 
 // Genera las próximas N fechas que caigan en el día de la semana indicado
@@ -61,13 +67,19 @@ function formatFecha(date: Date): string {
     });
 }
 
-function getHorasEnRango(horaInicio: string, horaFin: string) {
+function getHorasDesdeSlots(slots: Slot[], duracion: number): string[] {
+    const seen = new Set<string>();
     const horas: string[] = [];
-    let [h, m] = horaInicio.split(":").map(Number);
-    let hFin = Number(horaFin.split(":")[0]);
-    while (h < hFin) {
-        horas.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-        h++;
+    for (const slot of slots) {
+        const [sh, sm] = slot.hora_inicio.split(":").map(Number);
+        const [eh, em] = slot.hora_fin.split(":").map(Number);
+        let cur = sh * 60 + sm;
+        const end = eh * 60 + em;
+        while (cur + duracion <= end) {
+            const label = `${String(Math.floor(cur / 60)).padStart(2, '0')}:${String(cur % 60).padStart(2, '0')}`;
+            if (!seen.has(label)) { seen.add(label); horas.push(label); }
+            cur += duracion;
+        }
     }
     return horas;
 }
@@ -111,6 +123,15 @@ function TurnosPage() {
     const [especialidadFiltro, setEspecialidadFiltro] = useState("");
     const [diaFiltro, setDiaFiltro] = useState<number | null>(null);
     const [todasEspecialidades, setTodasEspecialidades] = useState<string[]>([]);
+    const [obraSocialPaciente, setObraSocialPaciente] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (!pacienteId) return;
+        apiFetch(`/api/pacientes/${pacienteId}/ficha`)
+            .then(r => r.json())
+            .then(({ data }) => setObraSocialPaciente(data?.obra_social ?? null))
+            .catch(() => {});
+    }, [pacienteId]);
 
     // Próximos y historial
     const [proximosTurnos, setProximosTurnos] = useState<TurnoBackend[]>([]);
@@ -122,6 +143,7 @@ function TurnosPage() {
     const [reserva, setReserva] = useState<ReservaPendiente | null>(null);
     const [fechaSeleccionada, setFechaSeleccionada] = useState<Date | null>(null);
     const [horaSeleccionada, setHoraSeleccionada] = useState<string | null>(null);
+    const [sedeSeleccionada, setSedeSeleccionada] = useState<string | null>(null);
     const [reservando, setReservando] = useState(false);
     const [reservaExitosa, setReservaExitosa] = useState(false);
     const [fechasOcupadas, setFechasOcupadas] = useState<string[]>([]);
@@ -132,8 +154,8 @@ function TurnosPage() {
         setLoadingTurnos(true);
         try {
             const [rProximos, rHistorial] = await Promise.all([
-                fetch(`${API}/pacientes/${pacienteId}/turnos`),
-                fetch(`${API}/pacientes/${pacienteId}/turnos/historial`),
+                apiFetch(`/api/pacientes/${pacienteId}/turnos`),
+                apiFetch(`/api/pacientes/${pacienteId}/turnos/historial`),
             ]);
             const jProximos = await rProximos.json();
             const jHistorial = await rHistorial.json();
@@ -149,7 +171,7 @@ function TurnosPage() {
     const cancelarTurno = async (id: string) => {
         setCancelandoId(id);
         try {
-            const r = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            const r = await apiFetch(`/api/turnos/${id}/cancelar`, { method: "PATCH" });
             if (r.ok) {
                 await fetchTurnosPaciente();
             }
@@ -169,7 +191,7 @@ function TurnosPage() {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const rMedicos = await fetch(`${API}/medicos`);
+                const rMedicos = await apiFetch(`/api/medicos`);
                 const jMedicos = await rMedicos.json();
                 const listaMedicos: Array<{
                     id: string; especialidades: string[]; sedes: string[];
@@ -180,15 +202,18 @@ function TurnosPage() {
                     listaMedicos
                         .filter((m) => m.recibir_turnos)
                         .map(async (m) => {
-                            const rSlots = await fetch(`${API}/medicos/${m.id}/disponibilidad`);
+                            const rSlots = await apiFetch(`/api/medicos/${m.id}/disponibilidad`);
                             const jSlots = await rSlots.json();
+                            const slots: Slot[] = jSlots.data ?? [];
                             return {
                                 id: m.id,
+                                obras_sociales: (m as any).obras_sociales ?? [],
                                 nombre_apellido: m.profiles?.nombre_apellido ?? "Médico",
                                 especialidades: m.especialidades ?? [],
                                 sedes: m.sedes ?? [],
                                 recibir_turnos: m.recibir_turnos,
-                                slots: jSlots.data ?? [],
+                                duracion_turno: slots[0]?.duracion_turno ?? 30,
+                                slots,
                             };
                         })
                 );
@@ -213,18 +238,24 @@ function TurnosPage() {
     const medicosFiltrados = medicos.filter((m) => {
         const pasaEsp = !especialidadFiltro || m.especialidades.includes(especialidadFiltro);
         const pasaDia = diaFiltro === null || m.slots.some((s) => s.dia_semana === diaFiltro);
-        return pasaEsp && pasaDia;
+        const pasaObra = !obraSocialPaciente
+            || m.obras_sociales.length === 0
+            || m.obras_sociales.includes(obraSocialPaciente);
+        return pasaEsp && pasaDia && pasaObra;
     });
 
-    const abrirModal = async (medico: Medico, slot: Slot) => {
-        setReserva({ medico, slot });
+    const abrirModal = async (medico: Medico, dia_semana: number, slots: Slot[]) => {
+        const sedesDelDia = [...new Set(slots.map(s => s.sede).filter(Boolean))] as string[];
+        setReserva({ medico, dia_semana, slots, sedesDelDia });
         setFechaSeleccionada(null);
         setHoraSeleccionada(null);
         setReservaExitosa(false);
         setFechasOcupadas([]);
+        // Si hay una sola sede la pre-seleccionamos
+        setSedeSeleccionada(sedesDelDia.length === 1 ? sedesDelDia[0] : null);
 
         try {
-            const r = await fetch(`${API}/medicos/${medico.id}/turnos`);
+            const r = await apiFetch(`/api/medicos/${medico.id}/turnos`);
             const j = await r.json();
             const ocupados = (j.data || []).map((t: any) => new Date(t.fecha_hora).toISOString());
             setTurnosOcupados(ocupados);
@@ -238,6 +269,7 @@ function TurnosPage() {
         setReserva(null);
         setFechaSeleccionada(null);
         setHoraSeleccionada(null);
+        setSedeSeleccionada(null);
         setReservando(false);
         setReservaExitosa(false);
         setFechasOcupadas([]);
@@ -248,7 +280,7 @@ function TurnosPage() {
         if (!reserva || !fechaSeleccionada || !horaSeleccionada) return;
 
         if (!pacienteId) {
-            alert("Necesitás iniciar sesión como paciente para reservar un turno.");
+            showToast("Necesitás iniciar sesión como paciente para reservar un turno.");
             return;
         }
 
@@ -256,7 +288,7 @@ function TurnosPage() {
         try {
             const fecha_hora = buildFechaHora(fechaSeleccionada, horaSeleccionada);
 
-            const response = await fetch(`${API}/turnos`, {
+            const response = await apiFetch(`/api/turnos`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -272,12 +304,12 @@ function TurnosPage() {
                 // Turno ya reservado: marcamos esa fecha/hora como ocupada pero no cerramos el modal
                 setFechasOcupadas((prev) => [...prev, fecha_hora]);
                 setHoraSeleccionada(null);
-                alert("Ese horario ya fue reservado. Por favor elegí otra fecha o médico.");
+                showToast("Ese horario ya fue reservado. Por favor elegí otra fecha o médico.");
                 return;
             }
 
             if (!response.ok) {
-                alert("Error al reservar: " + result.message);
+                showToast("No se pudo reservar el turno. Intentá de nuevo.");
                 return;
             }
 
@@ -285,7 +317,7 @@ function TurnosPage() {
             fetchTurnosPaciente();
         } catch (err) {
             console.error(err);
-            alert("Error al conectar con el servidor.");
+            showToast("Algo salió mal. Intentá de nuevo.");
         } finally {
             setReservando(false);
         }
@@ -559,36 +591,61 @@ function TurnosPage() {
                                     ))}
                                 </div>
 
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                    {slotsVisibles.map((slot) => (
-                                        <div
-                                            key={slot.id}
-                                            style={{
-                                                display: "flex", alignItems: "center",
-                                                justifyContent: "space-between",
-                                                background: "#f9fafb", borderRadius: 12,
-                                                padding: "10px 14px", border: "1px solid #f3f4f6",
-                                            }}
-                                        >
-                                            <div>
-                                                <span style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
-                                                    {DIA_NOMBRE[slot.dia_semana]}
-                                                </span>
-                                                <span style={{ fontSize: 14, color: "#6b7280", marginLeft: 8 }}>
-                                                    {slot.hora_inicio.slice(0, 5)} – {slot.hora_fin.slice(0, 5)} hs
-                                                </span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                                    {Object.entries(
+                                        slotsVisibles.filter(s => s.sede).reduce((acc, s) => {
+                                            const sede = s.sede!;
+                                            (acc[sede] = acc[sede] || []).push(s);
+                                            return acc;
+                                        }, {} as Record<string, Slot[]>)
+                                    ).map(([sede, sedeSlots]) => (
+                                        <div key={sede}>
+                                            <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 600, color: "#6b7280", display: "flex", alignItems: "center", gap: 5 }}>
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+                                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+                                                </svg>
+                                                {sede}
+                                            </p>
+                                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                                {Object.entries(
+                                                    sedeSlots.reduce((acc, s) => {
+                                                        (acc[s.dia_semana] = acc[s.dia_semana] || []).push(s);
+                                                        return acc;
+                                                    }, {} as Record<number, Slot[]>)
+                                                )
+                                                .sort(([a], [b]) => Number(a) - Number(b))
+                                                .map(([dia, diaSlots]) => (
+                                                    <div
+                                                        key={dia}
+                                                        style={{
+                                                            display: "flex", alignItems: "center",
+                                                            justifyContent: "space-between",
+                                                            background: "#f9fafb", borderRadius: 12,
+                                                            padding: "10px 14px", border: "1px solid #f3f4f6",
+                                                        }}
+                                                    >
+                                                        <div>
+                                                            <span style={{ fontWeight: 600, fontSize: 14, color: "#111827" }}>
+                                                                {DIA_NOMBRE[Number(dia)]}
+                                                            </span>
+                                                            <span style={{ fontSize: 13, color: "#6b7280", marginLeft: 8 }}>
+                                                                {[...new Map(diaSlots.map(s => [`${s.hora_inicio}${s.hora_fin}`, s])).values()]
+                                                                    .map(s => `${s.hora_inicio.slice(0,5)}–${s.hora_fin.slice(0,5)}`).join(" / ")} hs
+                                                            </span>
+                                                        </div>
+                                                        <button
+                                                            onClick={() => abrirModal(medico, Number(dia), diaSlots)}
+                                                            style={{
+                                                                padding: "7px 16px", borderRadius: 10, border: "none",
+                                                                background: "#2f5cf5", color: "white",
+                                                                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                                                            }}
+                                                        >
+                                                            Reservar
+                                                        </button>
+                                                    </div>
+                                                ))}
                                             </div>
-                                            <button
-                                                onClick={() => abrirModal(medico, slot)}
-                                                style={{
-                                                    padding: "7px 16px", borderRadius: 10, border: "none",
-                                                    background: "#2f5cf5", color: "white",
-                                                    fontSize: 13, fontWeight: 600, cursor: "pointer",
-                                                    transition: "0.15s ease",
-                                                }}
-                                            >
-                                                Reservar
-                                            </button>
                                         </div>
                                     ))}
                                 </div>
@@ -654,54 +711,88 @@ function TurnosPage() {
                                     </button>
                                 </div>
 
-                                {/* Info del médico y slot */}
-                                <div style={{
-                                    background: "#f0f4ff", borderRadius: 14, padding: "14px 16px", marginBottom: 20,
-                                }}>
+                                {/* Info del médico */}
+                                <div style={{ background: "#f0f4ff", borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
                                     <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
                                         {reserva.medico.nombre_apellido}
                                     </p>
                                     <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
-                                        {DIA_NOMBRE[reserva.slot.dia_semana]} · {reserva.slot.hora_inicio.slice(0, 5)} – {reserva.slot.hora_fin.slice(0, 5)} hs
+                                        {DIA_NOMBRE[reserva.dia_semana]}
+                                        {sedeSeleccionada ? ` · ${sedeSeleccionada}` : ""}
                                     </p>
                                 </div>
 
-                                {/* Fechas disponibles (próximas ocurrencias del día) */}
-                                <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
-                                    Próximas fechas disponibles
-                                </p>
-                                <div style={{ display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden", paddingBottom: 10, marginBottom: 24, paddingLeft: 4, paddingRight: 4 }}>
-                                    {proximasFechas(reserva.slot.dia_semana).map((fecha) => {
-                                        const seleccionada = fechaSeleccionada?.toDateString() === fecha.toDateString();
-                                        return (
-                                            <button
-                                                key={fecha.toISOString()}
-                                                onClick={() => { setFechaSeleccionada(fecha); setHoraSeleccionada(null); }}
-                                                style={{
-                                                    flexShrink: 0,
-                                                    padding: "12px 18px", borderRadius: 14, cursor: "pointer",
-                                                    border: seleccionada ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
-                                                    background: seleccionada ? "#eef3ff" : "white",
-                                                    color: seleccionada ? "#2f5cf5" : "#111827",
-                                                    fontWeight: seleccionada ? 700 : 500,
-                                                    fontSize: 15, textAlign: "center",
-                                                    transition: "0.15s ease",
-                                                    minWidth: 100
-                                                }}
-                                            >
-                                                {formatFecha(fecha)}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                                
-                                {fechaSeleccionada && (
+                                {/* Selección de sede (si tiene más de una ese día) */}
+                                {reserva.sedesDelDia.length > 1 && (
+                                    <div style={{ marginBottom: 20 }}>
+                                        <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
+                                            ¿En qué sede querés atenderte?
+                                        </p>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                            {reserva.sedesDelDia.map((sede) => (
+                                                <button
+                                                    key={sede}
+                                                    onClick={() => { setSedeSeleccionada(sede); setFechaSeleccionada(null); setHoraSeleccionada(null); }}
+                                                    style={{
+                                                        padding: "12px 16px", borderRadius: 12, cursor: "pointer", textAlign: "left",
+                                                        border: sedeSeleccionada === sede ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
+                                                        background: sedeSeleccionada === sede ? "#eef3ff" : "white",
+                                                        color: sedeSeleccionada === sede ? "#2f5cf5" : "#111827",
+                                                        fontWeight: sedeSeleccionada === sede ? 700 : 500,
+                                                        fontSize: 14, display: "flex", alignItems: "center", gap: 10,
+                                                    }}
+                                                >
+                                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                                        <circle cx="12" cy="10" r="3" />
+                                                    </svg>
+                                                    {sede}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Fechas disponibles — solo si hay sede seleccionada */}
+                                {sedeSeleccionada && (
+                                    <>
+                                        <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
+                                            Próximas fechas disponibles
+                                        </p>
+                                        <div style={{ display: "flex", gap: 10, overflowX: "auto", overflowY: "hidden", paddingBottom: 10, marginBottom: 24, paddingLeft: 4, paddingRight: 4 }}>
+                                            {proximasFechas(reserva.dia_semana).map((fecha) => {
+                                                const seleccionada = fechaSeleccionada?.toDateString() === fecha.toDateString();
+                                                return (
+                                                    <button
+                                                        key={fecha.toISOString()}
+                                                        onClick={() => { setFechaSeleccionada(fecha); setHoraSeleccionada(null); }}
+                                                        style={{
+                                                            flexShrink: 0,
+                                                            padding: "12px 18px", borderRadius: 14, cursor: "pointer",
+                                                            border: seleccionada ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
+                                                            background: seleccionada ? "#eef3ff" : "white",
+                                                            color: seleccionada ? "#2f5cf5" : "#111827",
+                                                            fontWeight: seleccionada ? 700 : 500,
+                                                            fontSize: 15, textAlign: "center",
+                                                            transition: "0.15s ease",
+                                                            minWidth: 100
+                                                        }}
+                                                    >
+                                                        {formatFecha(fecha)}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    </>
+                                )}
+
+                                {sedeSeleccionada && fechaSeleccionada && (
                                     <>
                                         <p style={{ margin: "0 0 12px", fontSize: 14, fontWeight: 600, color: "#374151" }}>
                                             Horarios disponibles
                                         </p>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
-                                            {getHorasEnRango(reserva.slot.hora_inicio, reserva.slot.hora_fin).map((hora) => {
+                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada), reserva.medico.duracion_turno).map((hora) => {
                                                 const iso = buildFechaHora(fechaSeleccionada, hora);
                                                 const ocupada = turnosOcupados.includes(iso) || fechasOcupadas.includes(iso);
                                                 const seleccionada = horaSeleccionada === hora;
@@ -711,7 +802,7 @@ function TurnosPage() {
                                                         onClick={() => !ocupada && setHoraSeleccionada(hora)}
                                                         disabled={ocupada}
                                                         style={{
-                                                            padding: "10px 18px", borderRadius: 12, 
+                                                            padding: "10px 18px", borderRadius: 12,
                                                             cursor: ocupada ? "not-allowed" : "pointer",
                                                             border: seleccionada ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
                                                             background: ocupada ? "#f3f4f6" : seleccionada ? "#eef3ff" : "white",
@@ -733,12 +824,12 @@ function TurnosPage() {
 
                                 <button
                                     onClick={confirmarReserva}
-                                    disabled={!fechaSeleccionada || !horaSeleccionada || reservando}
+                                    disabled={!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando}
                                     className="auth-button"
                                     style={{
                                         margin: 0,
-                                        opacity: (!fechaSeleccionada || !horaSeleccionada || reservando) ? 0.5 : 1,
-                                        cursor: (!fechaSeleccionada || !horaSeleccionada || reservando) ? "not-allowed" : "pointer",
+                                        opacity: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? 0.5 : 1,
+                                        cursor: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? "not-allowed" : "pointer",
                                     }}
                                 >
                                     {reservando ? "Reservando..." : "Confirmar turno"}

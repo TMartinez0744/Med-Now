@@ -5,9 +5,9 @@ import biotechIcon from "../assets/biotech.svg";
 import locationIcon from "../assets/location_on.svg";
 import clockIcon from "../assets/access_time.svg";
 import React, { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
-
-const API = "http://localhost:3000/api";
+import { apiFetch } from "../lib/api";
+import { showToast } from "../lib/toast";
+import FichaPaciente from "../components/FichaPaciente";
 
 const DIAS = [
     { nombre: "Lunes",     index: 1 },
@@ -32,6 +32,11 @@ const HOSPITALS = [
     "Hospital Italiano",
     "Hospital Alemán",
     "Sanatorio Finochietto",
+];
+
+const OBRAS_SOCIALES = [
+    "OSDE", "Swiss Medical", "Galeno", "IOMA", "Medifé",
+    "Sancor Salud", "PAMI", "Accord Salud", "Medicus", "Omint",
 ];
 
 type SlotDB = {
@@ -88,17 +93,21 @@ function DoctorDashboardPage() {
     const saveProfileName = async () => {
         if (!draftNombre.trim()) return;
         setSavingName(true);
-        const { error } = await supabase
-            .from("profiles")
-            .update({ nombre_apellido: draftNombre.trim() })
-            .eq("id", medicoId);
-        if (!error) {
-            const updated = { ...doctorData, nombre_apellido: draftNombre.trim() };
-            localStorage.setItem("doctorData", JSON.stringify(updated));
-            setDisplayName(buildDoctorName(draftNombre.trim()));
-            setShowEditProfileModal(false);
-        } else {
-            alert("Error al guardar: " + error.message);
+        try {
+            const res = await apiFetch(`/api/profiles/${medicoId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ nombre_apellido: draftNombre.trim() }),
+            });
+            if (res.ok) {
+                const updated = { ...doctorData, nombre_apellido: draftNombre.trim() };
+                localStorage.setItem("doctorData", JSON.stringify(updated));
+                setDisplayName(buildDoctorName(draftNombre.trim()));
+                setShowEditProfileModal(false);
+            } else {
+                showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+            }
+        } catch {
+            showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
         }
         setSavingName(false);
     };
@@ -113,6 +122,14 @@ function DoctorDashboardPage() {
     const [hospitals, setHospitals] = useState<string[]>(
         doctorData.sedes ?? []
     );
+    const [obrasSociales, setObrasSociales] = useState<string[]>([]);
+
+    useEffect(() => {
+        if (!medicoId) return;
+        apiFetch(`/api/medicos/${medicoId}/obras-sociales`)
+            .then(r => r.json())
+            .then(({ data }) => setObrasSociales(data ?? []));
+    }, [medicoId]);
 
     const [savingProfile, setSavingProfile] = useState(false);
     const [profileMsg, setProfileMsg] = useState<string | null>(null);
@@ -121,16 +138,17 @@ function DoctorDashboardPage() {
     const [turnos, setTurnos] = useState<TurnoMedico[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
     const [cancelandoId, setCelandoId] = useState<string | null>(null);
+    const [fichaAbierta, setFichaAbierta] = useState<{ id: string; nombre: string } | null>(null);
 
     const cancelarTurno = async (id: string) => {
         if (!confirm("¿Cancelar este turno?")) return;
         setCelandoId(id);
         try {
-            const res = await fetch(`${API}/turnos/${id}/cancelar`, { method: "PATCH" });
+            const res = await apiFetch(`/api/turnos/${id}/cancelar`, { method: "PATCH" });
             if (res.ok) {
                 setTurnos((prev) => prev.filter((t) => t.id !== id));
             } else {
-                alert("Error al cancelar el turno.");
+                showToast("No se pudo cancelar el turno. Intentá de nuevo.");
             }
         } catch (err) {
             console.error(err);
@@ -144,13 +162,19 @@ function DoctorDashboardPage() {
         setSavingProfile(true);
         setProfileMsg(null);
         try {
-            const res = await fetch(`${API}/medicos/${medicoId}`, {
-                method: "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ especialidades: specialties, sedes: hospitals }),
-            });
+            const [res, resObras] = await Promise.all([
+                apiFetch(`/api/medicos/${medicoId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ especialidades: specialties, sedes: hospitals }),
+                }),
+                apiFetch(`/api/medicos/${medicoId}/obras-sociales`, {
+                    method: "PUT",
+                    body: JSON.stringify({ obras_sociales: obrasSociales }),
+                }),
+            ]);
             const data = await res.json();
-            if (data.success) {
+            if (data.success && resObras.ok) {
                 setProfileMsg("✅ Cambios guardados correctamente.");
                 const updatedDoctorData = { ...doctorData, especialidades: specialties, sedes: hospitals };
                 localStorage.setItem("doctorData", JSON.stringify(updatedDoctorData));
@@ -166,6 +190,7 @@ function DoctorDashboardPage() {
         }
     };
 
+    const [duracionTurno, setDuracionTurno] = useState<number>(30);
     const [isEditingSchedule, setIsEditingSchedule] = useState(false);
     const [loadingSchedule, setLoadingSchedule] = useState(false);
     const [savingSchedule, setSavingSchedule] = useState(false);
@@ -192,7 +217,7 @@ function DoctorDashboardPage() {
     useEffect(() => {
         if (!medicoId) return;
         setLoadingTurnos(true);
-        fetch(`${API}/medicos/${medicoId}/turnos`)
+        apiFetch(`/api/medicos/${medicoId}/turnos`)
             .then((r) => r.json())
             .then(({ data }) => setTurnos(data ?? []))
             .catch(console.error)
@@ -213,11 +238,12 @@ function DoctorDashboardPage() {
         if (!medicoId) return;
 
         setLoadingSchedule(true);
-        fetch(`${API}/medicos/${medicoId}/disponibilidad`)
+        apiFetch(`/api/medicos/${medicoId}/disponibilidad`)
             .then((r) => r.json())
             .then(({ data }: { data: SlotDB[] }) => {
                 console.log('[load disponibilidad]', data);
                 if (!data || data.length === 0) return;
+                if (data[0]?.duracion_turno) setDuracionTurno(data[0].duracion_turno);
 
                 const bySedeDay: Record<string, Record<string, Interval[]>> = {};
                 data.forEach((slot) => {
@@ -252,7 +278,38 @@ function DoctorDashboardPage() {
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("doctorData");
+        localStorage.removeItem("token");
         navigate("/");
+    };
+
+    const [showPasswordModal, setShowPasswordModal] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [savingPassword, setSavingPassword] = useState(false);
+
+    const changePassword = async () => {
+        if (!currentPassword || !newPassword) { showToast("Completá todos los campos"); return; }
+        if (!/^(?=.*[A-Za-z])(?=.*\d).{8,}$/.test(newPassword)) {
+            showToast("La contraseña debe tener al menos 8 caracteres, una letra y un número"); return;
+        }
+        if (newPassword !== confirmPassword) { showToast("Las contraseñas no coinciden"); return; }
+        setSavingPassword(true);
+        try {
+            const res = await apiFetch("/api/auth/change-password", {
+                method: "POST",
+                body: JSON.stringify({ currentPassword, newPassword }),
+            });
+            const json = await res.json();
+            if (res.ok) {
+                showToast("Contraseña actualizada", "success");
+                setShowPasswordModal(false);
+                setCurrentPassword(""); setNewPassword(""); setConfirmPassword("");
+            } else {
+                showToast(json.message ?? "Error al cambiar la contraseña");
+            }
+        } catch { showToast("Error al cambiar la contraseña"); }
+        setSavingPassword(false);
     };
 
     const toggleSelection = (
@@ -370,8 +427,8 @@ function DoctorDashboardPage() {
         const currentSchedule = getSedeSchedule(selectedSede);
         try {
             // 1. Borrar slots de esta sede
-            await fetch(
-                `${API}/medicos/${medicoId}/disponibilidad?sede=${encodeURIComponent(selectedSede)}`,
+            await apiFetch(
+                `/api/medicos/${medicoId}/disponibilidad?sede=${encodeURIComponent(selectedSede)}`,
                 { method: "DELETE" }
             );
 
@@ -382,7 +439,7 @@ function DoctorDashboardPage() {
                 if (!day?.enabled) return;
                 day.intervals.forEach((interval) => {
                     creates.push(
-                        fetch(`${API}/medicos/${medicoId}/disponibilidad`, {
+                        apiFetch(`/api/medicos/${medicoId}/disponibilidad`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
                             body: JSON.stringify({
@@ -390,6 +447,7 @@ function DoctorDashboardPage() {
                                 hora_inicio: interval.from,
                                 hora_fin: interval.to,
                                 sede: selectedSede,
+                                duracion_turno: duracionTurno,
                             }),
                         }).then((r) => r.json())
                     );
@@ -456,10 +514,15 @@ function DoctorDashboardPage() {
                                         alignItems: "center", gap: 12,
                                     }}
                                 >
-                                    <div>
-                                        <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                            {nombrePaciente}
-                                        </p>
+                                    <div style={{ flex: 1 }}>
+                                        <button
+                                            onClick={() => setFichaAbierta({ id: turno.paciente_id, nombre: nombrePaciente })}
+                                            style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", width: "100%" }}
+                                        >
+                                            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#2f5cf5", textDecoration: "underline dotted" }}>
+                                                {nombrePaciente}
+                                            </p>
+                                        </button>
                                         <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
                                             📅 {fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
                                             {" "}🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
@@ -571,9 +634,48 @@ function DoctorDashboardPage() {
                     </div>
                 </div>
 
+                <div className="profile-block">
+                    <div className="profile-block-header">
+                        <svg className="section-icon" viewBox="0 0 24 24" fill="none" stroke="#2f5cf5" strokeWidth="2">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                        </svg>
+                        <h3>Obras sociales que atendés</h3>
+                    </div>
+
+                    <div className="selected-list chips-list">
+                        {obrasSociales.length > 0 ? (
+                            obrasSociales.map((o) => (
+                                <span key={o} className="info-chip">{o}</span>
+                            ))
+                        ) : (
+                            <p className="empty-text">Sin restricción — atendés todos los planes.</p>
+                        )}
+                    </div>
+
+                    <div className="options-grid">
+                        {OBRAS_SOCIALES.map((o) => (
+                            <label
+                                key={o}
+                                className={`option-card ${obrasSociales.includes(o) ? "selected" : ""}`}
+                            >
+                                <input
+                                    type="checkbox"
+                                    checked={obrasSociales.includes(o)}
+                                    onChange={() => toggleSelection(o, obrasSociales, setObrasSociales)}
+                                />
+                                <span className="custom-checkbox"></span>
+                                <span className="option-text">{o}</span>
+                            </label>
+                        ))}
+                    </div>
+                    <p style={{ fontSize: 12, color: "#9ca3af", marginTop: 6 }}>
+                        Si no seleccionás ninguna, aparecés para todos los pacientes.
+                    </p>
+                </div>
+
                 {profileMsg && <p style={{ color: profileMsg.includes("✅") ? "green" : "red", fontSize: "0.9rem", paddingBottom: "10px" }}>{profileMsg}</p>}
-                <button 
-                    className="dashboard-button save-button" 
+                <button
+                    className="dashboard-button save-button"
                     onClick={handleSaveProfile}
                     disabled={savingProfile}
                 >
@@ -620,6 +722,30 @@ function DoctorDashboardPage() {
                 {scheduleMsg && (
                     <p style={{ padding: "0 1rem 0.5rem", fontSize: "0.9rem" }}>{scheduleMsg}</p>
                 )}
+
+                {/* Duración del turno */}
+                <div style={{ padding: "0 1rem 1rem" }}>
+                    <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 600, color: "#374151" }}>Duración de cada turno</p>
+                    <div style={{ display: "flex", gap: 8 }}>
+                        {[15, 30, 45, 60].map((min) => (
+                            <button
+                                key={min}
+                                onClick={() => isEditingSchedule && setDuracionTurno(min)}
+                                style={{
+                                    padding: "8px 16px", borderRadius: 10, cursor: isEditingSchedule ? "pointer" : "default",
+                                    border: duracionTurno === min ? "2px solid #2f5cf5" : "1px solid #e5e7eb",
+                                    background: duracionTurno === min ? "#eef3ff" : "#f9fafb",
+                                    color: duracionTurno === min ? "#2f5cf5" : "#6b7280",
+                                    fontWeight: duracionTurno === min ? 700 : 500,
+                                    fontSize: 14,
+                                    opacity: !isEditingSchedule && duracionTurno !== min ? 0.5 : 1,
+                                }}
+                            >
+                                {min === 60 ? "1 h" : `${min} min`}
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
                 {hospitals.length === 0 ? (
                     <p className="empty-text" style={{ padding: "0 1rem 1rem" }}>
@@ -764,7 +890,7 @@ function DoctorDashboardPage() {
             <div className="dashboard-card">
                 <h3>Configuración</h3>
                 <button className="dashboard-button" onClick={() => { setDraftNombre(doctorData.nombre_apellido ?? ""); setShowEditProfileModal(true); }}>Editar Perfil</button>
-                <button className="dashboard-button">Cambiar Contraseña</button>
+                <button className="dashboard-button" onClick={() => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswordModal(true); }}>Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
                 <button className="dashboard-button logout" onClick={handleLogout}>
                     Cerrar sesión
@@ -772,6 +898,18 @@ function DoctorDashboardPage() {
             </div>
 
             <Navbar role="doctor" />
+
+            {/* ficha paciente */}
+            {fichaAbierta && (
+                <FichaPaciente
+                    pacienteId={fichaAbierta.id}
+                    medicoId={medicoId}
+                    nombreMedico={doctorData.nombre_apellido ?? "Médico"}
+                    matriculaMedico={doctorData.licenseNumber ?? undefined}
+                    nombrePaciente={fichaAbierta.nombre}
+                    onClose={() => setFichaAbierta(null)}
+                />
+            )}
 
             {/* modal editar perfil */}
             {showEditProfileModal && (
@@ -796,9 +934,34 @@ function DoctorDashboardPage() {
                     </div>
                 </div>
             )}
+
+            {/* modal cambiar contraseña */}
+            {showPasswordModal && (
+                <div style={overlayStyle} onClick={() => setShowPasswordModal(false)}>
+                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, fontSize: 18 }}>Cambiar contraseña</h3>
+                            <button onClick={() => setShowPasswordModal(false)} style={closeBtnStyle}>✕</button>
+                        </div>
+                        <label style={labelStyle}>Contraseña actual</label>
+                        <input className="auth-input" type="password" placeholder="Contraseña actual" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label style={labelStyle}>Nueva contraseña</label>
+                        <input className="auth-input" type="password" placeholder="Mínimo 8 caracteres, una letra y un número" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} style={{ marginBottom: 12 }} />
+                        <label style={labelStyle}>Confirmar nueva contraseña</label>
+                        <input className="auth-input" type="password" placeholder="Repetí la nueva contraseña" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} style={{ marginBottom: 24 }} />
+                        <button className="auth-button" onClick={changePassword} disabled={savingPassword}>
+                            {savingPassword ? "Guardando..." : "Confirmar"}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
+
+const labelStyle: React.CSSProperties = {
+    fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4,
+};
 
 const overlayStyle: React.CSSProperties = {
     position: "fixed",
