@@ -8,6 +8,7 @@ import DoctorRegisterPage from "./pages/DoctorRegisterPage";
 import PatientDashboardPage from "./pages/PatientDashboardPage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
 import TurnosPage from "./pages/TurnosPage";
+import PatientChatPage from "./pages/PatientChatPage";
 
 
 function App() {
@@ -22,6 +23,7 @@ function App() {
         <Route path="/patient/dashboard" element={<PatientDashboardPage />} />
         <Route path="/doctor/dashboard" element={<DoctorDashboardPage />} />
         <Route path="/patient/turnos" element={<TurnosPage />} />
+        <Route path="/patient/chat" element={<PatientChatPage />} />
       </Routes>
     </BrowserRouter>
   );

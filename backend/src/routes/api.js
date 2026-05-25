@@ -3,6 +3,7 @@ const router = express.Router();
 const supabase = require('../config/supabase');
 const disponibilidadController = require('../controllers/disponibilidadController');
 const turnosController = require('../controllers/turnosController');
+const chatController = require('../controllers/chatController');
 
 // Rutas REST clásicas de ejemplo para interactuar con Supabase en lugar de MongoDB
 
@@ -137,5 +138,8 @@ router.get('/medicos/:id/turnos',          turnosController.getByMedico.bind(tur
 router.get('/pacientes/:id/turnos/historial', turnosController.getHistorialByPaciente.bind(turnosController));
 router.get('/medicos/:id/turnos/historial',   turnosController.getHistorialByMedico.bind(turnosController));
 router.patch('/turnos/:id/cancelar',       turnosController.cancel.bind(turnosController));
+
+router.get('/chat/info', chatController.info.bind(chatController));
+router.post('/chat',     chatController.send.bind(chatController));
 
 module.exports = router;
