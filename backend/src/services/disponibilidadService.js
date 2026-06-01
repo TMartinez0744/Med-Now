@@ -6,7 +6,7 @@ class DisponibilidadService {
 
     async getByMedico(medicoId) {
         const { data, error } = await supabaseSedes
-            .from('disponibilidad_sedes')
+            .from('disponibilidad')
             .select('*')
             .eq('medico_id', medicoId)
             .order('dia_semana', { ascending: true })
@@ -22,7 +22,7 @@ class DisponibilidadService {
 
     async create(medicoId, { dia_semana, hora_inicio, hora_fin, sede, duracion_turno }) {
         const { data, error } = await supabaseSedes
-            .from('disponibilidad_sedes')
+            .from('disponibilidad')
             .insert({
                 medico_id:     medicoId,
                 dia_semana:    parseInt(dia_semana),
@@ -44,7 +44,7 @@ class DisponibilidadService {
 
     async delete(id) {
         const { error } = await supabaseSedes
-            .from('disponibilidad_sedes')
+            .from('disponibilidad')
             .delete()
             .eq('id', id);
 
@@ -53,17 +53,34 @@ class DisponibilidadService {
     }
 
     async deleteAllByMedico(medicoId, sede = null) {
-        let query = supabaseSedes
-            .from('disponibilidad_sedes')
-            .delete()
-            .eq('medico_id', medicoId);
+        if (sede) {
+            // Eliminar slots donde la sede es nula (slots por defecto del registro)
+            await supabaseSedes
+                .from('disponibilidad')
+                .delete()
+                .eq('medico_id', medicoId)
+                .is('sede', null);
 
-        if (sede) query = query.eq('sede', sede);
+            // Eliminar slots de la sede específica seleccionada
+            const { data, error } = await supabaseSedes
+                .from('disponibilidad')
+                .delete()
+                .eq('medico_id', medicoId)
+                .eq('sede', sede)
+                .select();
 
-        const { data, error } = await query.select();
+            if (error) throw error;
+            return { count: data ? data.length : 0 };
+        } else {
+            const { data, error } = await supabaseSedes
+                .from('disponibilidad')
+                .delete()
+                .eq('medico_id', medicoId)
+                .select();
 
-        if (error) throw error;
-        return { count: data.length };
+            if (error) throw error;
+            return { count: data ? data.length : 0 };
+        }
     }
 }
 

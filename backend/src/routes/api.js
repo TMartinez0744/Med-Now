@@ -8,6 +8,8 @@ const disponibilidadService = require('../services/disponibilidadService');
 const turnosController = require('../controllers/turnosController');
 const chatController = require('../controllers/chatController');
 const { verifyToken } = require('../middleware/authMiddleware');
+const { authorizeRoles, verifyOwnershipOrRole } = require('../middleware/roleMiddleware');
+const { verifyTurnoOwnership } = require('../middleware/verifyTurnoOwnership');
 
 router.use(verifyToken);
 
@@ -15,6 +17,7 @@ router.use(verifyToken);
 
 // GET /api/medicos
 // Obtiene todos los médicos cruzado con su información de perfil y obras sociales.
+// Accesible por cualquier usuario autenticado (pacientes o médicos)
 router.get('/medicos', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -41,11 +44,12 @@ router.get('/medicos', async (req, res) => {
         res.json({ success: true, count: merged.length, data: merged });
     } catch (err) {
         console.error("Error obteniendo médicos:", err);
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "Error interno al obtener los médicos." });
     }
 });
 
 // GET /api/medicos/:id/obras-sociales
+// Accesible por el médico propietario o cualquier paciente/usuario autenticado
 router.get('/medicos/:id/obras-sociales', async (req, res) => {
     const { id } = req.params;
     try {
@@ -57,12 +61,14 @@ router.get('/medicos/:id/obras-sociales', async (req, res) => {
         if (error && error.code !== 'PGRST116') throw error;
         res.json({ success: true, data: data?.obras_sociales ?? [] });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al obtener obras sociales:", err);
+        res.status(500).json({ success: false, message: "Error interno al obtener las obras sociales." });
     }
 });
 
 // PUT /api/medicos/:id/obras-sociales
-router.put('/medicos/:id/obras-sociales', async (req, res) => {
+// Solo el médico propietario puede modificar sus propias obras sociales
+router.put('/medicos/:id/obras-sociales', verifyOwnershipOrRole([], 'id'), async (req, res) => {
     const { id } = req.params;
     const { obras_sociales } = req.body;
     try {
@@ -74,13 +80,14 @@ router.put('/medicos/:id/obras-sociales', async (req, res) => {
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error actualizando obras sociales:", err);
+        res.status(500).json({ success: false, message: "Error interno al actualizar las obras sociales." });
     }
 });
 
 // PUT /api/medicos/:id
-// Actualiza especialidades y sedes de un médico
-router.put('/medicos/:id', async (req, res) => {
+// Solo el médico propietario puede actualizar sus especialidades y sedes
+router.put('/medicos/:id', verifyOwnershipOrRole([], 'id'), async (req, res) => {
     const { id } = req.params;
     const { especialidades, sedes } = req.body;
     
@@ -97,13 +104,13 @@ router.put('/medicos/:id', async (req, res) => {
         res.json({ success: true, data });
     } catch (err) {
         console.error("Error actualizando médico:", err);
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "Error interno al actualizar los datos médicos." });
     }
 });
 
 // GET /api/pacientes/:id
-// Obtiene un paciente por su UUID
-router.get('/pacientes/:id', async (req, res) => {
+// Permitido al paciente dueño o a médicos
+router.get('/pacientes/:id', verifyOwnershipOrRole(['medico'], 'id'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabase
@@ -118,13 +125,14 @@ router.get('/pacientes/:id', async (req, res) => {
         res.json({ success: true, data });
     } catch (err) {
         console.error("Error obteniendo paciente:", err);
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "Error interno al obtener los datos del paciente." });
     }
 });
 
 // GET /api/pacientes
-// Obtiene todos los pacientes registrados cruzado con su perfil
-router.get('/pacientes', async (req, res) => {
+// Obtiene todos los pacientes registrados cruzado con su perfil.
+// Solo médicos o administradores tienen acceso a este listado completo.
+router.get('/pacientes', authorizeRoles('medico', 'admin'), async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('pacientes')
@@ -140,12 +148,12 @@ router.get('/pacientes', async (req, res) => {
         res.json({ success: true, count: data.length, data });
     } catch (err) {
         console.error("Error obteniendo pacientes:", err);
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "Error interno al obtener la lista de pacientes." });
     }
 });
 
 // GET /api/centros_emergencia
-// Obtiene la lista de centros médicos/guardias guardados en la base de datos
+// Obtiene la lista de centros médicos/guardias. Público para usuarios autenticados.
 router.get('/centros_emergencia', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -157,18 +165,13 @@ router.get('/centros_emergencia', async (req, res) => {
         res.json({ success: true, count: data.length, data });
     } catch (err) {
         console.error("Error obteniendo centros de emergencia:", err);
-        res.status(500).json({ success: false, message: err.message });
+        res.status(500).json({ success: false, message: "Error interno al obtener centros de emergencia." });
     }
 });
 
 // ─── Disponibilidad de médicos ───────────────────────────────────────────────
 
-// GET    /api/medicos/:id/disponibilidad     → listar slots del médico
-// POST   /api/medicos/:id/disponibilidad     → crear slot  { dia_semana, hora_inicio, hora_fin }
-// DELETE /api/medicos/:id/disponibilidad     → eliminar todos los slots del médico
-// DELETE /api/disponibilidad/:id             → eliminar un slot específico
-
-// GET /api/medicos/:id/slots?sede=X&fecha=YYYY-MM-DD → slots disponibles reales
+// GET /api/medicos/:id/slots?sede=X&fecha=YYYY-MM-DD → slots disponibles reales (público)
 router.get('/medicos/:id/slots', async (req, res) => {
     const { id } = req.params;
     const { sede, fecha } = req.query;
@@ -203,29 +206,64 @@ router.get('/medicos/:id/slots', async (req, res) => {
         const bookedTimes = new Set((booked ?? []).map(t => t.fecha_hora.slice(11, 16)));
         res.json({ success: true, data: allSlots.filter(s => !bookedTimes.has(s)) });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error obteniendo slots de disponibilidad:", err);
+        res.status(500).json({ success: false, message: "Error interno al calcular slots libres." });
     }
 });
 
-router.get('/medicos/:id/disponibilidad',    disponibilidadController.getByMedico.bind(disponibilidadController));
-router.post('/medicos/:id/disponibilidad',   disponibilidadController.create.bind(disponibilidadController));
-router.delete('/medicos/:id/disponibilidad', disponibilidadController.deleteAllByMedico.bind(disponibilidadController));
-router.delete('/disponibilidad/:id',         disponibilidadController.delete.bind(disponibilidadController));
+// GET /api/medicos/:id/disponibilidad
+// Obtiene slots del médico. Puede verlo el propio médico o un paciente para sacar turno.
+router.get('/medicos/:id/disponibilidad', disponibilidadController.getByMedico.bind(disponibilidadController));
+
+// POST /api/medicos/:id/disponibilidad
+// Solo el médico propietario puede configurar su disponibilidad
+router.post('/medicos/:id/disponibilidad', verifyOwnershipOrRole([], 'id'), disponibilidadController.create.bind(disponibilidadController));
+
+// DELETE /api/medicos/:id/disponibilidad
+// Solo el médico propietario puede borrar su disponibilidad
+router.delete('/medicos/:id/disponibilidad', verifyOwnershipOrRole([], 'id'), disponibilidadController.deleteAllByMedico.bind(disponibilidadController));
+
+// DELETE /api/disponibilidad/:id
+// Dado que elimina por ID de slot, primero verificamos la propiedad en el servicio/controlador, o la restringimos a médicos en general.
+// Para ser robustos, solo permitimos a médicos ejecutar este delete.
+router.delete('/disponibilidad/:id', authorizeRoles('medico'), disponibilidadController.delete.bind(disponibilidadController));
 
 // ─── Turnos (reservas) ───────────────────────────────────────────────────────
 
-// POST  /api/turnos                     → crear turno { paciente_id, medico_id, fecha_hora }
-// GET   /api/pacientes/:id/turnos       → turnos de un paciente
-// GET   /api/medicos/:id/turnos         → turnos de un médico
-// PATCH /api/turnos/:id/cancelar        → cancelar turno
+// POST /api/turnos → crear turno { paciente_id, medico_id, fecha_hora }
+// Protegemos para que un paciente no cree un turno en nombre de otro paciente
+router.post('/turnos', (req, res, next) => {
+    const { paciente_id } = req.body;
+    const { id: tokenUserId, tipo_usuario: tokenUserRole } = req.user;
+    
+    if (tokenUserRole !== 'medico' && tokenUserId !== paciente_id) {
+        return res.status(403).json({ success: false, message: 'Acceso denegado: No puedes agendar turnos para otro paciente.' });
+    }
+    next();
+}, turnosController.create.bind(turnosController));
 
-router.post('/turnos',                     turnosController.create.bind(turnosController));
-router.get('/pacientes/:id/turnos',        turnosController.getByPaciente.bind(turnosController));
-router.get('/medicos/:id/turnos',          turnosController.getByMedico.bind(turnosController));
-router.get('/pacientes/:id/turnos/historial', turnosController.getHistorialByPaciente.bind(turnosController));
+// GET /api/pacientes/:id/turnos
+// Solo el paciente dueño o un médico pueden ver los turnos
+router.get('/pacientes/:id/turnos', verifyOwnershipOrRole(['medico'], 'id'), turnosController.getByPaciente.bind(turnosController));
+
+// GET /api/medicos/:id/turnos
+// Solo el médico dueño puede ver sus propios turnos
+router.get('/medicos/:id/turnos', verifyOwnershipOrRole([], 'id'), turnosController.getByMedico.bind(turnosController));
+
+// GET /api/pacientes/:id/turnos/historial
+// Solo el paciente dueño o un médico pueden ver su historial
+router.get('/pacientes/:id/turnos/historial', verifyOwnershipOrRole(['medico'], 'id'), turnosController.getHistorialByPaciente.bind(turnosController));
 
 // GET /api/pacientes/:id/turnos/con-medico/:medicoId → historial entre paciente y médico
-router.get('/pacientes/:id/turnos/con-medico/:medicoId', async (req, res) => {
+// Solo el paciente dueño o el médico implicado pueden acceder
+router.get('/pacientes/:id/turnos/con-medico/:medicoId', (req, res, next) => {
+    const { id, medicoId } = req.params;
+    const { id: tokenUserId, tipo_usuario: tokenUserRole } = req.user;
+    if (tokenUserId === id || tokenUserId === medicoId) {
+        return next();
+    }
+    return res.status(403).json({ success: false, message: 'Acceso denegado: No tienes permisos para ver esta información.' });
+}, async (req, res) => {
     const { id, medicoId } = req.params;
     try {
         const { data, error } = await supabase
@@ -237,19 +275,27 @@ router.get('/pacientes/:id/turnos/con-medico/:medicoId', async (req, res) => {
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al obtener historial con médico:", err);
+        res.status(500).json({ success: false, message: "Error interno al obtener el historial." });
     }
 });
-router.get('/medicos/:id/turnos/historial',   turnosController.getHistorialByMedico.bind(turnosController));
-router.patch('/turnos/:id/cancelar',       turnosController.cancel.bind(turnosController));
+
+// GET /api/medicos/:id/turnos/historial
+// Solo el médico dueño puede ver el historial
+router.get('/medicos/:id/turnos/historial', verifyOwnershipOrRole([], 'id'), turnosController.getHistorialByMedico.bind(turnosController));
+
+// PATCH /api/turnos/:id/cancelar
+// Protegido por verifyTurnoOwnership para asegurar que solo los implicados cancelen
+router.patch('/turnos/:id/cancelar', verifyTurnoOwnership, turnosController.cancel.bind(turnosController));
 
 router.get('/chat/info', chatController.info.bind(chatController));
-router.post('/chat',     chatController.send.bind(chatController));
+router.post('/chat', chatController.send.bind(chatController));
 
 // ─── Paciente: perfil extendido (genero, fecha_nacimiento, email) ────────────
 
 // GET /api/pacientes/:id/perfil
-router.get('/pacientes/:id/perfil', async (req, res) => {
+// Solo el paciente dueño o un médico pueden ver su perfil detallado
+router.get('/pacientes/:id/perfil', verifyOwnershipOrRole(['medico'], 'id'), async (req, res) => {
     const { id } = req.params;
     try {
         const { data, error } = await supabaseSedes
@@ -260,11 +306,13 @@ router.get('/pacientes/:id/perfil', async (req, res) => {
         if (error && error.code !== 'PGRST116') throw error;
         res.json({ success: true, data: data ?? null });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al obtener perfil paciente:", err);
+        res.status(500).json({ success: false, message: "Error interno al obtener el perfil." });
     }
 });
 
 // POST /api/auth/change-password
+// Protegido implícitamente ya que usa el req.user.id extraído del token JWT
 router.post('/auth/change-password', async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;
@@ -285,12 +333,14 @@ router.post('/auth/change-password', async (req, res) => {
         if (updateError) throw updateError;
         res.json({ success: true });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al cambiar contraseña:", err);
+        res.status(500).json({ success: false, message: "Error interno al cambiar la contraseña." });
     }
 });
 
 // PATCH /api/pacientes/:id/perfil
-router.patch('/pacientes/:id/perfil', async (req, res) => {
+// Solo el paciente dueño puede modificar sus datos de perfil personal
+router.patch('/pacientes/:id/perfil', verifyOwnershipOrRole([], 'id'), async (req, res) => {
     const { id } = req.params;
     const { genero, fecha_nacimiento, email, numero_afiliado } = req.body;
     try {
@@ -312,14 +362,16 @@ router.patch('/pacientes/:id/perfil', async (req, res) => {
         }
         res.json({ success: true, data });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al actualizar perfil:", err);
+        res.status(500).json({ success: false, message: "Error interno al actualizar el perfil." });
     }
 });
 
 // ─── Paciente: historial y obra social ──────────────────────────────────────
 
-// GET  /api/pacientes/:id/ficha   → perfil + ficha médica del paciente
-router.get('/pacientes/:id/ficha', async (req, res) => {
+// GET /api/pacientes/:id/ficha → perfil + ficha médica del paciente
+// Solo el paciente dueño o un médico pueden consultarla
+router.get('/pacientes/:id/ficha', verifyOwnershipOrRole(['medico'], 'id'), async (req, res) => {
     const { id } = req.params;
     try {
         const [{ data: paciente, error: e1 }, { data: profile, error: e2 }] = await Promise.all([
@@ -330,12 +382,14 @@ router.get('/pacientes/:id/ficha', async (req, res) => {
         if (e2) throw e2;
         res.json({ success: true, data: { ...profile, ...paciente } });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al obtener ficha médica:", err);
+        res.status(500).json({ success: false, message: "Error interno al obtener la ficha médica." });
     }
 });
 
-// PATCH /api/pacientes/:id/historial  → actualiza ficha_medica
-router.patch('/pacientes/:id/historial', async (req, res) => {
+// PATCH /api/pacientes/:id/historial → actualiza ficha_medica
+// Solo el propio paciente o un médico pueden actualizar la historia clínica
+router.patch('/pacientes/:id/historial', verifyOwnershipOrRole(['medico'], 'id'), async (req, res) => {
     const { id } = req.params;
     const { ficha_medica } = req.body;
     try {
@@ -348,12 +402,14 @@ router.patch('/pacientes/:id/historial', async (req, res) => {
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error actualizando historial médico:", err);
+        res.status(500).json({ success: false, message: "Error interno al actualizar la historia clínica." });
     }
 });
 
-// PATCH /api/pacientes/:id/obra-social  → actualiza obra_social
-router.patch('/pacientes/:id/obra-social', async (req, res) => {
+// PATCH /api/pacientes/:id/obra-social → actualiza obra_social
+// Solo el paciente dueño puede actualizar su obra social
+router.patch('/pacientes/:id/obra-social', verifyOwnershipOrRole([], 'id'), async (req, res) => {
     const { id } = req.params;
     const { obra_social } = req.body;
     try {
@@ -366,12 +422,14 @@ router.patch('/pacientes/:id/obra-social', async (req, res) => {
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al actualizar obra social:", err);
+        res.status(500).json({ success: false, message: "Error interno al actualizar la obra social." });
     }
 });
 
-// PATCH /api/profiles/:id  → actualiza nombre_apellido y/o dni
-router.patch('/profiles/:id', async (req, res) => {
+// PATCH /api/profiles/:id → actualiza nombre_apellido y/o dni
+// Solo el propio usuario dueño del perfil puede actualizar sus datos
+router.patch('/profiles/:id', verifyOwnershipOrRole([], 'id'), async (req, res) => {
     const { id } = req.params;
     const { nombre_apellido, dni } = req.body;
     const updates = {};
@@ -387,7 +445,8 @@ router.patch('/profiles/:id', async (req, res) => {
         if (error) throw error;
         res.json({ success: true, data });
     } catch (err) {
-        res.status(500).json({ success: false, message: err.message });
+        console.error("Error al actualizar perfil general:", err);
+        res.status(500).json({ success: false, message: "Error interno al actualizar el perfil general." });
     }
 });
 

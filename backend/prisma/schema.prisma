@@ -3,72 +3,109 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 model profiles {
-  id              String      @id @db.Uuid
+  id              String     @id @db.Uuid
   nombre_apellido String
-  dni             String      @unique
-  tipo_usuario    String
+  dni             String     @unique
+  tipo_usuario    String?
+  created_at      DateTime?  @default(now()) @db.Timestamptz(6)
   password        String?
-  created_at      DateTime?   @default(now()) @db.Timestamptz(6)
-  
-  // Relaciones
-  medico          medicos?
-  paciente        pacientes?
+  medicos         medicos?
+  pacientes       pacientes?
 }
 
 model medicos {
-  id             String               @id @db.Uuid
-  especialidades String[]
-  sedes          String[]
-  recibir_turnos Boolean?             @default(true)
-  
-  profile        profiles             @relation(fields: [id], references: [id], onDelete: Cascade)
-  turnos         turnos[]
-  disponibilidad disponibilidad[]
+  id                    String                 @id @db.Uuid
+  especialidades        String[]
+  sedes                 String[]
+  recibir_turnos        Boolean?               @default(true)
+  profiles              profiles               @relation(fields: [id], references: [id], onDelete: Cascade)
+  turnos                turnos[]
+  chat_rooms            chat_rooms[]
+  medico_obras_sociales medico_obras_sociales?
 }
 
 model pacientes {
-  id           String      @id @db.Uuid
-  obra_social  String?
-  ficha_medica Json?
-  
-  profile      profiles    @relation(fields: [id], references: [id], onDelete: Cascade)
-  turnos       turnos[]
+  id              String           @id @db.Uuid
+  obra_social     String?
+  ficha_medica    Json?
+  profiles        profiles         @relation(fields: [id], references: [id], onDelete: Cascade)
+  turnos          turnos[]
+  chat_rooms      chat_rooms[]
+  paciente_perfil paciente_perfil?
 }
 
 model turnos {
-  id           Int         @id @default(autoincrement())
-  paciente_id  String      @db.Uuid
-  medico_id    String      @db.Uuid
-  fecha_hora   DateTime    @db.Timestamptz(6)
-  estado       String
-  notas_triage String?
-
-  paciente     pacientes   @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
-  medico       medicos     @relation(fields: [medico_id], references: [id], onDelete: Cascade)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paciente_id     String    @db.Uuid
+  medico_id       String    @db.Uuid
+  fecha_hora      DateTime  @db.Timestamptz(6)
+  motivo_consulta String?
+  estado          String?   @default("pendiente")
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
+  pacientes       pacientes @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
+  medicos         medicos   @relation(fields: [medico_id], references: [id], onDelete: Cascade)
 }
 
 model centros_emergencia {
   id          Int      @id @default(autoincrement())
   nombre      String
-  direccion   String
+  tipo        String?
+  direccion   String?
   latitud     Float?
   longitud    Float?
   abierto_24h Boolean? @default(true)
-
-  tipo String @default("guardia") // guardia | farmacia
 }
 
 model disponibilidad {
-  id          String   @id @default(uuid()) @db.Uuid
-  medico_id   String   @db.Uuid
-  dia_semana  Int
-  hora_inicio DateTime @db.Time(6)
-  hora_fin    DateTime @db.Time(6)
-  sede        String?
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  medico_id      String?  @db.Uuid
+  dia_semana     Int
+  hora_inicio    DateTime @db.Time(6)
+  hora_fin       DateTime @db.Time(6)
+  sede           String?
+  duracion_turno Int?     @default(30)
 
-  medico      medicos  @relation(fields: [medico_id], references: [id], onDelete: Cascade)
+  @@unique([medico_id, dia_semana, hora_inicio])
+}
+
+model chat_rooms {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paciente_id String   @db.Uuid
+  medico_id   String   @db.Uuid
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  pacientes   pacientes @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
+  medicos     medicos   @relation(fields: [medico_id], references: [id], onDelete: Cascade)
+  mensajes    mensajes[]
+
+  @@unique([paciente_id, medico_id])
+}
+
+model mensajes {
+  id         String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  room_id    String     @db.Uuid
+  sender_id  String     @db.Uuid
+  contenido  String
+  leido      Boolean    @default(false)
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+  chat_rooms chat_rooms @relation(fields: [room_id], references: [id], onDelete: Cascade)
+}
+
+model paciente_perfil {
+  paciente_id      String    @id @db.Uuid
+  genero           String?
+  fecha_nacimiento String?
+  email            String?
+  numero_afiliado  String?
+  pacientes        pacientes @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
+}
+
+model medico_obras_sociales {
+  medico_id      String   @id @db.Uuid
+  obras_sociales String[]
+  medicos        medicos  @relation(fields: [medico_id], references: [id], onDelete: Cascade)
 }
