@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
+import { showToast } from "../lib/toast";
 import FichaHistorialModal from "./FichaHistorialModal";
 
 interface Props {
@@ -29,6 +30,37 @@ interface TurnoFicha {
     estado: string;
 }
 
+interface HistorialItem {
+    id: number;
+    label: string;
+}
+
+const CONDICIONES_DISPONIBLES: HistorialItem[] = [
+    { id: 1, label: "Hipertensión" },
+    { id: 2, label: "Diabetes tipo 2" },
+    { id: 3, label: "Asma" },
+    { id: 4, label: "Taquicardia" },
+    { id: 5, label: "Hipotiroidismo" },
+    { id: 6, label: "Artritis" },
+    { id: 7, label: "Migraña crónica" },
+    { id: 8, label: "Depresión" },
+    { id: 9, label: "Ansiedad" },
+    { id: 10, label: "Celiaquía" },
+];
+
+const ALERGIAS_DISPONIBLES: HistorialItem[] = [
+    { id: 101, label: "Penicilina" },
+    { id: 102, label: "Ibuprofeno" },
+    { id: 103, label: "Aspirina" },
+    { id: 104, label: "Polen" },
+    { id: 105, label: "Ácaros" },
+    { id: 106, label: "Mariscos" },
+    { id: 107, label: "Látex" },
+    { id: 108, label: "Sulfas" },
+    { id: 109, label: "Nueces" },
+    { id: 110, label: "Leche" },
+];
+
 function calcularEdad(fechaNacimiento: string): number {
     const hoy = new Date();
     const nac = new Date(fechaNacimiento);
@@ -43,6 +75,14 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
     const [loading, setLoading] = useState(true);
     const [exportando, setExportando] = useState(false);
     const [showHistorialModal, setShowHistorialModal] = useState(false);
+
+    // Estado de edición para médico
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [draftCondiciones, setDraftCondiciones] = useState<HistorialItem[]>([]);
+    const [draftAlergias, setDraftAlergias] = useState<HistorialItem[]>([]);
+    const [searchCondicion, setSearchCondicion] = useState("");
+    const [searchAlergia, setSearchAlergia] = useState("");
+    const [savingHistorial, setSavingHistorial] = useState(false);
 
     useEffect(() => {
         const fetch = async () => {
@@ -72,6 +112,52 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
         };
         fetch();
     }, [pacienteId]);
+
+    const openEditModal = () => {
+        if (!ficha) return;
+        setDraftCondiciones([...ficha.condiciones]);
+        setDraftAlergias([...ficha.alergias]);
+        setSearchCondicion("");
+        setSearchAlergia("");
+        setShowEditModal(true);
+    };
+
+    const toggleDraftItem = (
+        item: HistorialItem,
+        draft: HistorialItem[],
+        setDraft: (v: HistorialItem[]) => void
+    ) => {
+        const exists = draft.find((d) => d.id === item.id);
+        if (exists) setDraft(draft.filter((d) => d.id !== item.id));
+        else setDraft([...draft, item]);
+    };
+
+    const saveHistorial = async () => {
+        setSavingHistorial(true);
+        try {
+            const res = await apiFetch(`/api/pacientes/${pacienteId}/historial`, {
+                method: "PATCH",
+                body: JSON.stringify({ ficha_medica: { condiciones: draftCondiciones, alergias: draftAlergias } }),
+            });
+            if (res.ok) {
+                setFicha((prev) => prev ? { ...prev, condiciones: draftCondiciones, alergias: draftAlergias } : null);
+                setShowEditModal(false);
+                showToast("Ficha médica actualizada correctamente.", "success");
+            } else {
+                showToast("No se pudo guardar la ficha. Intentá de nuevo.");
+            }
+        } catch {
+            showToast("No se pudo guardar la ficha. Intentá de nuevo.");
+        }
+        setSavingHistorial(false);
+    };
+
+    const filteredCondiciones = CONDICIONES_DISPONIBLES.filter((c) =>
+        c.label.toLowerCase().includes(searchCondicion.toLowerCase())
+    );
+    const filteredAlergias = ALERGIAS_DISPONIBLES.filter((a) =>
+        a.label.toLowerCase().includes(searchAlergia.toLowerCase())
+    );
 
     const exportarPDF = async () => {
         if (!ficha) return;
@@ -161,8 +247,8 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
   </div>
 
   <button class="print-btn" onclick="window.print()">Guardar como PDF / Imprimir</button>
-</body>
-</html>`;
+ </body>
+ </html>`;
 
             const ventana = window.open("", "_blank");
             if (ventana) {
@@ -246,13 +332,30 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
                             )}
                         </div>
 
+                        {/* Botón principal Editar Ficha para el médico */}
+                        <button
+                            onClick={openEditModal}
+                            style={{
+                                width: "100%", padding: "12px", borderRadius: 12, border: "none",
+                                background: "#2f5cf5", color: "white", fontWeight: 700, fontSize: 14,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                                gap: 6, marginBottom: 10
+                            }}
+                        >
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4z"/>
+                            </svg>
+                            Editar Ficha Médica
+                        </button>
+
                         <div style={{ display: "flex", gap: 10 }}>
                             <button
                                 onClick={exportarPDF}
                                 disabled={exportando}
                                 style={{
-                                    flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #2f5cf5",
-                                    background: "white", color: "#2f5cf5", fontWeight: 700, fontSize: 14,
+                                    flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #6b7280",
+                                    background: "white", color: "#374151", fontWeight: 700, fontSize: 14,
                                     cursor: exportando ? "not-allowed" : "pointer", opacity: exportando ? 0.6 : 1,
                                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                                 }}
@@ -284,6 +387,119 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
                     </>
                 )}
             </div>
+
+            {/* Modal Editar Ficha Médica (Idéntico al de paciente) */}
+            {showEditModal && (
+                <div style={overlayStyle} onClick={() => setShowEditModal(false)}>
+                    <div style={{ ...modalStyle, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+                        <div style={modalHeaderStyle}>
+                            <h3 style={{ margin: 0, fontSize: 18 }}>Editar Ficha Médica</h3>
+                            <button onClick={() => setShowEditModal(false)} style={closeBtnStyle}>✕</button>
+                        </div>
+
+                        {/* Condiciones */}
+                        <div style={{ marginBottom: 24 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+                                </svg>
+                                <span style={{ fontWeight: 700, fontSize: 15, color: "#374151" }}>Condiciones</span>
+                            </div>
+
+                            {draftCondiciones.length > 0 && (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                                    {draftCondiciones.map((c) => (
+                                        <span
+                                            key={c.id}
+                                            style={{ ...chipStyle("#fee2e2", "#b91c1c"), cursor: "pointer" }}
+                                            onClick={() => toggleDraftItem(c, draftCondiciones, setDraftCondiciones)}
+                                        >
+                                            {c.label} ✕
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            <input
+                                className="auth-input"
+                                placeholder="Buscar condición..."
+                                value={searchCondicion}
+                                onChange={(e) => setSearchCondicion(e.target.value)}
+                                style={{ marginBottom: 8 }}
+                            />
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {filteredCondiciones
+                                    .filter((c) => !draftCondiciones.find((d) => d.id === c.id))
+                                    .slice(0, 6)
+                                    .map((c) => (
+                                        <button
+                                            key={c.id}
+                                            onClick={() => toggleDraftItem(c, draftCondiciones, setDraftCondiciones)}
+                                            style={suggestionBtnStyle}
+                                        >
+                                            + {c.label}
+                                        </button>
+                                    ))}
+                            </div>
+                        </div>
+
+                        {/* Alergias */}
+                        <div style={{ marginBottom: 24 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="8" x2="12" y2="12" />
+                                    <line x1="12" y1="16" x2="12.01" y2="16" />
+                                </svg>
+                                <span style={{ fontWeight: 700, fontSize: 15, color: "#374151" }}>Alergias</span>
+                            </div>
+
+                            {draftAlergias.length > 0 && (
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+                                    {draftAlergias.map((a) => (
+                                        <span
+                                            key={a.id}
+                                            style={{ ...chipStyle("#fef3c7", "#b45309"), cursor: "pointer" }}
+                                            onClick={() => toggleDraftItem(a, draftAlergias, setDraftAlergias)}
+                                        >
+                                            {a.label} ✕
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
+
+                            <input
+                                className="auth-input"
+                                placeholder="Buscar alergia..."
+                                value={searchAlergia}
+                                onChange={(e) => setSearchAlergia(e.target.value)}
+                                style={{ marginBottom: 8 }}
+                            />
+
+                            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {filteredAlergias
+                                    .filter((a) => !draftAlergias.find((d) => d.id === a.id))
+                                    .slice(0, 6)
+                                    .map((a) => (
+                                        <button
+                                            key={a.id}
+                                            onClick={() => toggleDraftItem(a, draftAlergias, setDraftAlergias)}
+                                            style={suggestionBtnStyle}
+                                        >
+                                            + {a.label}
+                                        </button>
+                                    ))}
+                            </div>
+                        </div>
+
+                        <button className="auth-button" onClick={saveHistorial} disabled={savingHistorial}>
+                            {savingHistorial ? "Guardando..." : "Guardar cambios"}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {showHistorialModal && (
                 <FichaHistorialModal
                     pacienteId={pacienteId}
@@ -312,9 +528,28 @@ const modalStyle: React.CSSProperties = {
     maxHeight: "85vh", overflowY: "auto",
 };
 
+const modalHeaderStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 18,
+};
+
 const closeBtnStyle: React.CSSProperties = {
     background: "none", border: "none", fontSize: 18,
     cursor: "pointer", color: "#6b7280",
+};
+
+const suggestionBtnStyle: React.CSSProperties = {
+    width: "100%",
+    padding: "10px 14px",
+    borderRadius: 10,
+    border: "1px solid #e5e7eb",
+    background: "#f9fafb",
+    fontSize: 14,
+    cursor: "pointer",
+    textAlign: "left",
+    color: "#374151",
 };
 
 export default FichaPaciente;
