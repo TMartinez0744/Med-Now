@@ -101,6 +101,9 @@ router.put('/medicos/:id', verifyOwnershipOrRole([], 'id'), async (req, res) => 
             
         if (error) throw error;
         
+        // Disparador de sincronización de completitud
+        await syncMedicoCompleteness(id);
+        
         res.json({ success: true, data });
     } catch (err) {
         console.error("Error actualizando médico:", err);
@@ -217,7 +220,29 @@ router.get('/medicos/:id/disponibilidad', disponibilidadController.getByMedico.b
 
 // POST /api/medicos/:id/disponibilidad
 // Solo el médico propietario puede configurar su disponibilidad
-router.post('/medicos/:id/disponibilidad', verifyOwnershipOrRole([], 'id'), disponibilidadController.create.bind(disponibilidadController));
+router.post('/medicos/:id/disponibilidad', verifyOwnershipOrRole([], 'id'), async (req, res, next) => {
+    const { id } = req.params;
+    
+    // Validar que el médico tenga el perfil completo
+    try {
+        const { data: medico, error: medError } = await supabase
+            .from('medicos')
+            .select('perfil_completo')
+            .eq('id', id)
+            .single();
+
+        if (medError || !medico || !medico.perfil_completo) {
+            return res.status(403).json({
+                success: false,
+                message: 'Acceso denegado: Tu perfil médico está incompleto. Debes configurar al menos una especialidad y una sede de atención en el Dashboard antes de poder publicar tu disponibilidad.'
+            });
+        }
+    } catch (err) {
+        console.error("Error al validar perfil completo del médico:", err);
+    }
+
+    next();
+}, disponibilidadController.create.bind(disponibilidadController));
 
 // DELETE /api/medicos/:id/disponibilidad
 // Solo el médico propietario puede borrar su disponibilidad
@@ -232,13 +257,32 @@ router.delete('/disponibilidad/:id', authorizeRoles('medico'), disponibilidadCon
 
 // POST /api/turnos → crear turno { paciente_id, medico_id, fecha_hora }
 // Protegemos para que un paciente no cree un turno en nombre de otro paciente
-router.post('/turnos', (req, res, next) => {
+router.post('/turnos', async (req, res, next) => {
     const { paciente_id } = req.body;
     const { id: tokenUserId, tipo_usuario: tokenUserRole } = req.user;
     
     if (tokenUserRole !== 'medico' && tokenUserId !== paciente_id) {
         return res.status(403).json({ success: false, message: 'Acceso denegado: No puedes agendar turnos para otro paciente.' });
     }
+
+    // Validar que el paciente tenga el perfil completo
+    try {
+        const { data: paciente, error: pacError } = await supabase
+            .from('pacientes')
+            .select('perfil_completo')
+            .eq('id', paciente_id)
+            .single();
+
+        if (pacError || !paciente || !paciente.perfil_completo) {
+            return res.status(403).json({
+                success: false,
+                message: 'Acceso denegado: Tu perfil está incompleto. Debes completar tu DNI real, género, fecha de nacimiento, email y número de afiliado en el Dashboard para reservar un turno.'
+            });
+        }
+    } catch (err) {
+        console.error("Error al validar perfil completo del paciente:", err);
+    }
+
     next();
 }, turnosController.create.bind(turnosController));
 
@@ -360,6 +404,10 @@ router.patch('/pacientes/:id/perfil', verifyOwnershipOrRole([], 'id'), async (re
             console.error('Error upsert paciente_perfil:', JSON.stringify(error));
             throw error;
         }
+
+        // Disparador de sincronización de completitud
+        await syncPatientCompleteness(id);
+
         res.json({ success: true, data });
     } catch (err) {
         console.error("Error al actualizar perfil:", err);
@@ -502,11 +550,82 @@ router.patch('/profiles/:id', verifyOwnershipOrRole([], 'id'), async (req, res) 
             .select()
             .single();
         if (error) throw error;
+
+        // Disparador de sincronización de completitud
+        if (data.tipo_usuario === 'paciente') {
+            await syncPatientCompleteness(id);
+        } else if (data.tipo_usuario === 'medico') {
+            await syncMedicoCompleteness(id);
+        }
+
         res.json({ success: true, data });
     } catch (err) {
         console.error("Error al actualizar perfil general:", err);
         res.status(500).json({ success: false, message: "Error interno al actualizar el perfil general." });
     }
 });
+
+// Helpers para sincronización de completitud de perfiles
+async function syncPatientCompleteness(pacienteId) {
+    try {
+        const { data: profile } = await supabase
+            .from('profiles')
+            .select('dni')
+            .eq('id', pacienteId)
+            .single();
+
+        const isProvisional = profile?.dni && profile.dni.startsWith('99') && profile.dni.length === 8;
+
+        const { data: perfil } = await supabaseSedes
+            .from('paciente_perfil')
+            .select('genero, fecha_nacimiento, email, numero_afiliado')
+            .eq('paciente_id', pacienteId)
+            .maybeSingle();
+
+        const isComplete = !!(
+            profile?.dni &&
+            !isProvisional &&
+            perfil?.genero &&
+            perfil?.fecha_nacimiento &&
+            perfil?.email &&
+            perfil?.numero_afiliado
+        );
+
+        await supabase
+            .from('pacientes')
+            .update({ perfil_completo: isComplete })
+            .eq('id', pacienteId);
+
+        return isComplete;
+    } catch (err) {
+        console.error("Error syncing patient completeness:", err);
+        return false;
+    }
+}
+
+async function syncMedicoCompleteness(medicoId) {
+    try {
+        const { data: medico } = await supabase
+            .from('medicos')
+            .select('especialidades, sedes')
+            .eq('id', medicoId)
+            .single();
+
+        const isComplete = !!(
+            medico?.especialidades && Array.isArray(medico.especialidades) && medico.especialidades.length > 0 &&
+            medico?.sedes && Array.isArray(medico.sedes) && medico.sedes.length > 0
+        );
+
+        await supabase
+            .from('medicos')
+            .update({ perfil_completo: isComplete })
+            .eq('id', medicoId);
+
+        return isComplete;
+    } catch (err) {
+        console.error("Error syncing medico completeness:", err);
+        return false;
+    }
+}
 
 module.exports = router;

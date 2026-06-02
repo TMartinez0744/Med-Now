@@ -23,6 +23,7 @@ model medicos {
   especialidades        String[]
   sedes                 String[]
   recibir_turnos        Boolean?               @default(true)
+  perfil_completo       Boolean                @default(false)
   profiles              profiles               @relation(fields: [id], references: [id], onDelete: Cascade)
   turnos                turnos[]
   chat_rooms            chat_rooms[]
@@ -33,6 +34,7 @@ model pacientes {
   id                     String                   @id @db.Uuid
   obra_social            String?
   ficha_medica           Json?
+  perfil_completo        Boolean                  @default(false)
   profiles               profiles                 @relation(fields: [id], references: [id], onDelete: Cascade)
   turnos                 turnos[]
   chat_rooms             chat_rooms[]

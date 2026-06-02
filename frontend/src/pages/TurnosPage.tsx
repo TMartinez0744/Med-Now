@@ -124,13 +124,32 @@ function TurnosPage() {
     const [diaFiltro, setDiaFiltro] = useState<number | null>(null);
     const [todasEspecialidades, setTodasEspecialidades] = useState<string[]>([]);
     const [obraSocialPaciente, setObraSocialPaciente] = useState<string | null>(null);
+    const [perfilIncompleto, setPerfilIncompleto] = useState(false);
 
     useEffect(() => {
         if (!pacienteId) return;
+        
+        // 1. Cargar obra social
         apiFetch(`/api/pacientes/${pacienteId}/ficha`)
             .then(r => r.json())
             .then(({ data }) => setObraSocialPaciente(data?.obra_social ?? null))
             .catch(() => {});
+
+        // 2. Cargar completitud de perfil
+        apiFetch(`/api/pacientes/${pacienteId}/perfil`)
+            .then(r => r.json())
+            .then(({ data }) => {
+                const patientData = JSON.parse(localStorage.getItem("patientData") || "{}");
+                const hasProvisionalDni = !!(patientData.dni && patientData.dni.startsWith("99") && patientData.dni.length === 8);
+                
+                if (data) {
+                    const isIncomplete = hasProvisionalDni || !data.genero || !data.fecha_nacimiento || !data.email || !data.numero_afiliado;
+                    setPerfilIncompleto(isIncomplete);
+                } else {
+                    setPerfilIncompleto(true);
+                }
+            })
+            .catch(() => setPerfilIncompleto(true));
     }, [pacienteId]);
 
     // Próximos y historial
@@ -281,6 +300,11 @@ function TurnosPage() {
 
         if (!pacienteId) {
             showToast("Necesitás iniciar sesión como paciente para reservar un turno.");
+            return;
+        }
+
+        if (perfilIncompleto) {
+            showToast("Debés completar tu perfil en el Dashboard para reservar un turno.");
             return;
         }
 
@@ -827,18 +851,59 @@ function TurnosPage() {
                                     </>
                                 )}
 
-                                <button
-                                    onClick={confirmarReserva}
-                                    disabled={!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando}
-                                    className="auth-button"
-                                    style={{
-                                        margin: 0,
-                                        opacity: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? 0.5 : 1,
-                                        cursor: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? "not-allowed" : "pointer",
-                                    }}
-                                >
-                                    {reservando ? "Reservando..." : "Confirmar turno"}
-                                </button>
+                                 {perfilIncompleto ? (
+                                    <div style={{
+                                        background: "#fffbeb",
+                                        border: "1.5px solid #fbbf24",
+                                        borderRadius: 14,
+                                        padding: "14px 16px",
+                                        textAlign: "left",
+                                        display: "flex",
+                                        flexDirection: "column",
+                                        gap: 8,
+                                        marginBottom: 10,
+                                        marginTop: 10
+                                    }}>
+                                        <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "#92400e" }}>
+                                            ⚠️ Perfil incompleto
+                                        </p>
+                                        <p style={{ margin: 0, fontSize: 13, color: "#b45309" }}>
+                                            Debés completar tu perfil (DNI real, género, fecha de nacimiento, email y número de afiliado) desde el Dashboard antes de poder reservar un turno.
+                                        </p>
+                                        <a
+                                            href="/patient/dashboard"
+                                            style={{
+                                                background: "#d97706",
+                                                color: "white",
+                                                border: "none",
+                                                borderRadius: 10,
+                                                padding: "10px 14px",
+                                                fontSize: 14,
+                                                fontWeight: 600,
+                                                cursor: "pointer",
+                                                textAlign: "center",
+                                                textDecoration: "none",
+                                                marginTop: 4,
+                                                display: "block"
+                                            }}
+                                        >
+                                            Completar Perfil ahora
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={confirmarReserva}
+                                        disabled={!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando}
+                                        className="auth-button"
+                                        style={{
+                                            margin: 0,
+                                            opacity: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? 0.5 : 1,
+                                            cursor: (!sedeSeleccionada || !fechaSeleccionada || !horaSeleccionada || reservando) ? "not-allowed" : "pointer",
+                                        }}
+                                    >
+                                        {reservando ? "Reservando..." : "Confirmar turno"}
+                                    </button>
+                                )}
                             </>
                         )}
                     </div>

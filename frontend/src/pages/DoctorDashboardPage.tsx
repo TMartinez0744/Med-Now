@@ -123,6 +123,7 @@ function DoctorDashboardPage() {
         doctorData.sedes ?? []
     );
     const [obrasSociales, setObrasSociales] = useState<string[]>([]);
+    const isPerfilIncompleto = specialties.length === 0 || hospitals.length === 0;
 
     useEffect(() => {
         if (!medicoId) return;
@@ -442,6 +443,12 @@ function DoctorDashboardPage() {
     // Guardar horario de la sede seleccionada
     const handleSaveSchedule = async () => {
         if (!medicoId || !selectedSede) return;
+        
+        if (isPerfilIncompleto) {
+            showToast("Debés configurar al menos una especialidad y una sede de atención antes de guardar tus horarios.");
+            return;
+        }
+
         setSavingSchedule(true);
         setScheduleMsg(null);
         const currentSchedule = getSedeSchedule(selectedSede);
@@ -731,7 +738,7 @@ function DoctorDashboardPage() {
                         <button
                             className="schedule-secondary-button"
                             onClick={() => setIsEditingSchedule(true)}
-                            disabled={loadingSchedule || hospitals.length === 0}
+                            disabled={loadingSchedule || isPerfilIncompleto}
                         >
                             {loadingSchedule ? "Cargando..." : "Editar"}
                         </button>
@@ -757,6 +764,26 @@ function DoctorDashboardPage() {
 
                 {scheduleMsg && (
                     <p style={{ padding: "0 1rem 0.5rem", fontSize: "0.9rem" }}>{scheduleMsg}</p>
+                )}
+
+                {isPerfilIncompleto && (
+                    <div style={{
+                        background: "#fffbeb",
+                        border: "1.5px solid #fbbf24",
+                        borderRadius: 14,
+                        padding: "12px 14px",
+                        margin: "0 1rem 1rem",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 6
+                    }}>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: "#92400e" }}>
+                            ⚠️ Perfil profesional incompleto
+                        </p>
+                        <p style={{ margin: 0, fontSize: 13, color: "#b45309" }}>
+                            Debés configurar al menos una especialidad y una sede de atención en la sección "Perfil Médico" para poder publicar tus horarios de atención.
+                        </p>
+                    </div>
                 )}
 
                 {/* Duración del turno */}
