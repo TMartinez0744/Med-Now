@@ -792,13 +792,18 @@ function TurnosPage() {
                                             Horarios disponibles
                                         </p>
                                         <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 24 }}>
-                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada), reserva.medico.duracion_turno).map((hora) => {
-                                                const iso = buildFechaHora(fechaSeleccionada, hora);
-                                                const ocupada = turnosOcupados.includes(iso) || fechasOcupadas.includes(iso);
-                                                const seleccionada = horaSeleccionada === hora;
-                                                return (
-                                                    <button
-                                                        key={hora}
+                                            {getHorasDesdeSlots(reserva.slots.filter(s => s.sede === sedeSeleccionada), reserva.medico.duracion_turno)
+                                                .filter((hora) => {
+                                                    const iso = buildFechaHora(fechaSeleccionada, hora);
+                                                    return new Date(iso) > new Date(); // Solo permitir horarios en el futuro
+                                                })
+                                                .map((hora) => {
+                                                    const iso = buildFechaHora(fechaSeleccionada, hora);
+                                                    const ocupada = turnosOcupados.includes(iso) || fechasOcupadas.includes(iso);
+                                                    const seleccionada = horaSeleccionada === hora;
+                                                    return (
+                                                        <button
+                                                            key={hora}
                                                         onClick={() => !ocupada && setHoraSeleccionada(hora)}
                                                         disabled={ocupada}
                                                         style={{

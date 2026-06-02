@@ -10,6 +10,7 @@ interface TurnoPaciente {
     id: string;
     fecha_hora: string;
     estado: string;
+    medico_id: string;
     medicos: {
         especialidades: string[];
         profiles: { nombre_apellido: string };
@@ -58,6 +59,10 @@ function PatientDashboardPage() {
     const navigate = useNavigate();
     const patientData = JSON.parse(localStorage.getItem("patientData") || "{}");
 
+    const isProvisionalDni = (dni: string) => {
+        return !!(dni && dni.startsWith("99") && dni.length === 8);
+    };
+
     const capitalize = (text: string): string => {
         if (!text) return "";
         return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
@@ -74,7 +79,7 @@ function PatientDashboardPage() {
     const [showEditProfileModal, setShowEditProfileModal] = useState(false);
     const [draftName, setDraftName] = useState(patientData.name ?? "");
     const [draftLastName, setDraftLastName] = useState(patientData.lastName ?? "");
-    const [draftDni, setDraftDni] = useState(patientData.dni ?? "");
+    const [draftDni, setDraftDni] = useState(isProvisionalDni(patientData.dni) ? "" : (patientData.dni ?? ""));
     const [draftEmail, setDraftEmail] = useState("");
     const [draftFechaNacimiento, setDraftFechaNacimiento] = useState("");
     const [draftGenero, setDraftGenero] = useState("");
@@ -117,23 +122,24 @@ function PatientDashboardPage() {
         apiFetch(`/api/pacientes/${patientData.id}/perfil`)
             .then(r => r.json())
             .then(({ data }) => {
+                const hasProvisionalDni = isProvisionalDni(patientData.dni);
                 if (data) {
                     setDraftEmail(data.email ?? "");
                     setDraftFechaNacimiento(data.fecha_nacimiento ?? "");
                     setDraftGenero(data.genero ?? "");
                     setDraftNumeroAfiliado(data.numero_afiliado ?? "");
-                    setPerfilIncompleto(!data.genero || !data.fecha_nacimiento || !data.email || !data.numero_afiliado);
+                    setPerfilIncompleto(hasProvisionalDni || !data.genero || !data.fecha_nacimiento || !data.email || !data.numero_afiliado);
                 } else {
                     setPerfilIncompleto(true);
                 }
             })
             .catch(() => setPerfilIncompleto(true));
-    }, [patientData.id]);
+    }, [patientData.id, patientData.dni]);
 
     const openEditProfile = () => {
         setDraftName(patientData.name ?? "");
         setDraftLastName(patientData.lastName ?? "");
-        setDraftDni(patientData.dni ?? "");
+        setDraftDni(isProvisionalDni(patientData.dni) ? "" : (patientData.dni ?? ""));
         setShowEditProfileModal(true);
     };
 
@@ -162,7 +168,7 @@ function PatientDashboardPage() {
                 const updated = { ...patientData, name: draftName.trim(), lastName: draftLastName.trim(), nombre_apellido: nombreCompleto, dni: draftDni.trim() };
                 localStorage.setItem("patientData", JSON.stringify(updated));
                 setDisplayName(`${capitalize(draftName.trim())} ${capitalize(draftLastName.trim())}`);
-                setPerfilIncompleto(!draftGenero || !draftFechaNacimiento || !draftEmail.trim() || !draftNumeroAfiliado.trim());
+                setPerfilIncompleto(!draftGenero || !draftFechaNacimiento || !draftEmail.trim() || !draftNumeroAfiliado.trim() || isProvisionalDni(draftDni.trim()));
                 setShowEditProfileModal(false);
                 showToast("Perfil actualizado", "success");
             } else {
@@ -234,6 +240,26 @@ function PatientDashboardPage() {
             .catch(console.error)
             .finally(() => setLoadingTurnos(false));
     }, [patientData.id]);
+
+    const handleStartChat = async (medicoId: string) => {
+        try {
+            const res = await apiFetch("/api/chats/room", {
+                method: "POST",
+                body: JSON.stringify({
+                    paciente_id: patientData.id,
+                    medico_id: medicoId
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                navigate(`/patient/chat/${data.data.id}`);
+            } else {
+                showToast(data.message ?? "Error al abrir la sala de chat.");
+            }
+        } catch {
+            showToast("Error al conectar con el servidor.");
+        }
+    };
 
     const handleLogout = () => {
         localStorage.removeItem("user");
@@ -308,7 +334,7 @@ function PatientDashboardPage() {
                 <div>
                     <h2 className="dashboard-name">{displayName}</h2>
                     <p className="dashboard-sub">
-                        DNI: {patientData.dni || "No disponible"}
+                        DNI: {isProvisionalDni(patientData.dni) ? "No especificado" : (patientData.dni || "No disponible")}
                     </p>
                 </div>
             </div>
@@ -344,19 +370,41 @@ function PatientDashboardPage() {
                             borderRadius: 14,
                             padding: "14px 16px",
                             border: "1px solid #f3f4f6",
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: 12
                         }}>
-                            <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                {proximoTurno.medicos?.profiles?.nombre_apellido ?? "Médico"}
-                            </p>
-                            {proximoTurno.medicos?.especialidades?.[0] && (
-                                <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
-                                    {proximoTurno.medicos.especialidades[0]}
+                            <div>
+                                <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
+                                    {proximoTurno.medicos?.profiles?.nombre_apellido ?? "Médico"}
                                 </p>
-                            )}
-                            <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
-                                📅 {new Date(proximoTurno.fecha_hora).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
-                                {" "}&nbsp;🕐 {new Date(proximoTurno.fecha_hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
-                            </p>
+                                {proximoTurno.medicos?.especialidades?.[0] && (
+                                    <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
+                                        {proximoTurno.medicos.especialidades[0]}
+                                    </p>
+                                )}
+                                <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
+                                    📅 {new Date(proximoTurno.fecha_hora).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
+                                    {" "}&nbsp;🕐 {new Date(proximoTurno.fecha_hora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => handleStartChat(proximoTurno.medico_id)}
+                                style={{
+                                    flexShrink: 0,
+                                    padding: "8px 14px",
+                                    borderRadius: 10,
+                                    border: "none",
+                                    background: "#2f5cf5",
+                                    color: "white",
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    cursor: "pointer"
+                                }}
+                            >
+                                Chatear
+                            </button>
                         </div>
                         <a
                             href="/patient/turnos"

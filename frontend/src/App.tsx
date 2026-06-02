@@ -12,6 +12,8 @@ import PatientChatPage from "./pages/PatientChatPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Toaster from "./components/Toaster";
 import EmergencyMapPage from "./pages/EmergencyMapPage";
+import ChatRoomPage from "./pages/ChatRoomPage";
+import AuthCallback from "./pages/AuthCallback";
 
 function App() {
     return (
@@ -23,6 +25,7 @@ function App() {
                 <Route path="/login/doctor" element={<DoctorLoginPage />} />
                 <Route path="/register/patient" element={<PatientRegisterPage />} />
                 <Route path="/register/doctor" element={<DoctorRegisterPage />} />
+                <Route path="/auth/callback" element={<AuthCallback />} />
 
                 <Route
                     path="/patient/dashboard"
@@ -56,6 +59,24 @@ function App() {
                     element={
                         <ProtectedRoute role="patient">
                             <PatientChatPage />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/patient/chat/:roomId"
+                    element={
+                        <ProtectedRoute role="patient">
+                            <ChatRoomPage role="patient" />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/doctor/chat/:roomId"
+                    element={
+                        <ProtectedRoute role="doctor">
+                            <ChatRoomPage role="doctor" />
                         </ProtectedRoute>
                     }
                 />

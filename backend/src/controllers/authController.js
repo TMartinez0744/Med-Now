@@ -136,4 +136,97 @@ const login = async (req, res) => {
     }
 };
 
-module.exports = { register, login };
+const googleLogin = async (req, res) => {
+    const { access_token } = req.body;
+    if (!access_token) {
+        return res.status(400).json({ message: 'Falta el access_token' });
+    }
+    try {
+        // 1. Validar el token contra Supabase
+        const { data: { user }, error: authError } = await supabase.auth.getUser(access_token);
+        if (authError || !user) {
+            return res.status(401).json({ message: 'Token de Google inválido o expirado' });
+        }
+
+        const email = user.email;
+        const userId = user.id;
+        const fullName = user.user_metadata?.full_name || user.user_metadata?.name || 'Usuario Google';
+
+        // 2. Buscar si existe en profiles por id
+        let { data: profile } = await supabase
+            .from('profiles')
+            .select('id, nombre_apellido, dni, tipo_usuario')
+            .eq('id', userId)
+            .maybeSingle();
+
+        // Si no existe, buscar por email en paciente_perfil
+        if (!profile) {
+            const { data: perfilEmail } = await supabaseSedes
+                .from('paciente_perfil')
+                .select('paciente_id')
+                .eq('email', email)
+                .maybeSingle();
+
+            if (perfilEmail) {
+                // Si encontramos el paciente por su email, usamos ese perfil
+                const { data: existingProfile } = await supabase
+                    .from('profiles')
+                    .select('id, nombre_apellido, dni, tipo_usuario')
+                    .eq('id', perfilEmail.paciente_id)
+                    .maybeSingle();
+                profile = existingProfile;
+            }
+        }
+
+        // Si aún no existe, lo creamos como un nuevo paciente
+        if (!profile) {
+            // Generar un DNI provisional único (rango 99xxxxxx para identificarlo como provisional)
+            const digits = userId.replace(/\D/g, '');
+            const provisionalDni = '99' + (digits.slice(0, 6).padStart(6, '0') || String(Math.floor(100000 + Math.random() * 900000)));
+            
+            // Crear perfil base
+            await supabase.from('profiles').insert([{
+                id: userId,
+                dni: provisionalDni,
+                nombre_apellido: fullName,
+                tipo_usuario: 'paciente',
+            }]);
+
+            // Crear rol paciente
+            await supabase.from('pacientes').insert([{ id: userId, obra_social: null }]);
+
+            // Crear paciente_perfil
+            await supabaseSedes.from('paciente_perfil').insert([{
+                paciente_id: userId,
+                genero: null,
+                fecha_nacimiento: null,
+                email: email,
+            }]);
+
+            profile = {
+                id: userId,
+                dni: provisionalDni,
+                nombre_apellido: fullName,
+                tipo_usuario: 'paciente'
+            };
+        }
+
+        // 3. Generar nuestro token JWT
+        const token = jwt.sign(
+            { id: profile.id, tipo_usuario: profile.tipo_usuario },
+            process.env.JWT_SECRET,
+            { expiresIn: '8h' }
+        );
+
+        return res.status(200).json({
+            message: 'Login con Google exitoso',
+            token,
+            user: profile
+        });
+    } catch (error) {
+        console.error('Error en googleLogin:', error);
+        return res.status(500).json({ message: 'Error interno del servidor' });
+    }
+};
+
+module.exports = { register, login, googleLogin };

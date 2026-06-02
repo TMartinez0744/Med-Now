@@ -275,6 +275,26 @@ function DoctorDashboardPage() {
             .finally(() => setLoadingSchedule(false));
     }, [medicoId]);
 
+    const handleStartChat = async (pacienteId: string) => {
+        try {
+            const res = await apiFetch("/api/chats/room", {
+                method: "POST",
+                body: JSON.stringify({
+                    paciente_id: pacienteId,
+                    medico_id: medicoId
+                })
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                navigate(`/doctor/chat/${data.data.id}`);
+            } else {
+                showToast(data.message ?? "Error al abrir la sala de chat.");
+            }
+        } catch {
+            showToast("Error al conectar con el servidor.");
+        }
+    };
+
     const handleLogout = () => {
         localStorage.removeItem("user");
         localStorage.removeItem("doctorData");
@@ -537,24 +557,40 @@ function DoctorDashboardPage() {
                                             {turno.estado}
                                         </span>
                                     </div>
-                                    <button
-                                        onClick={() => cancelarTurno(turno.id)}
-                                        disabled={isCanceling}
-                                        style={{
-                                            flexShrink: 0,
-                                            padding: "7px 13px",
-                                            borderRadius: 10,
-                                            border: "1px solid #fecaca",
-                                            background: "#fff5f5",
-                                            color: "#dc2626",
-                                            fontSize: 13,
-                                            fontWeight: 600,
-                                            cursor: isCanceling ? "not-allowed" : "pointer",
-                                            opacity: isCanceling ? 0.5 : 1,
-                                        }}
-                                    >
-                                        {isCanceling ? "..." : "Cancelar"}
-                                    </button>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                                        <button
+                                            onClick={() => handleStartChat(turno.paciente_id)}
+                                            style={{
+                                                padding: "7px 13px",
+                                                borderRadius: 10,
+                                                border: "none",
+                                                background: "#2f5cf5",
+                                                color: "white",
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                cursor: "pointer"
+                                            }}
+                                        >
+                                            Chatear
+                                        </button>
+                                        <button
+                                            onClick={() => cancelarTurno(turno.id)}
+                                            disabled={isCanceling}
+                                            style={{
+                                                padding: "7px 13px",
+                                                borderRadius: 10,
+                                                border: "1px solid #fecaca",
+                                                background: "#fff5f5",
+                                                color: "#dc2626",
+                                                fontSize: 13,
+                                                fontWeight: 600,
+                                                cursor: isCanceling ? "not-allowed" : "pointer",
+                                                opacity: isCanceling ? 0.5 : 1,
+                                            }}
+                                        >
+                                            {isCanceling ? "..." : "Cancelar"}
+                                        </button>
+                                    </div>
                                 </div>
                             );
                         })}

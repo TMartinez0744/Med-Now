@@ -39,6 +39,11 @@ function DoctorLoginPage() {
                 return;
             }
 
+            if (result.user?.tipo_usuario !== "medico") {
+                showToast("Error: Esta matrícula no está registrada como médico");
+                return;
+            }
+
             // Limpiar sesión previa de paciente
             localStorage.removeItem("patientData");
 
