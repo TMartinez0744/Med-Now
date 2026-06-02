@@ -393,6 +393,20 @@ router.patch('/pacientes/:id/historial', verifyOwnershipOrRole(['medico'], 'id')
     const { id } = req.params;
     const { ficha_medica } = req.body;
     try {
+        // 1. Obtener la ficha médica actual para guardarla en el historial anterior
+        const { data: currentPaciente, error: fetchError } = await supabase
+            .from('pacientes')
+            .select('ficha_medica')
+            .eq('id', id)
+            .single();
+            
+        if (fetchError && fetchError.code !== 'PGRST116') {
+            console.error("Error al consultar ficha actual:", fetchError);
+        }
+
+        const fichaAnterior = currentPaciente?.ficha_medica || null;
+
+        // 2. Actualizar la ficha médica
         const { data, error } = await supabase
             .from('pacientes')
             .update({ ficha_medica })
@@ -400,10 +414,55 @@ router.patch('/pacientes/:id/historial', verifyOwnershipOrRole(['medico'], 'id')
             .select()
             .single();
         if (error) throw error;
+
+        // 3. Crear el registro en el historial de modificaciones
+        const { error: histError } = await supabase
+            .from('ficha_medica_historial')
+            .insert([{
+                paciente_id: id,
+                modificado_por: req.user.id,
+                ficha_anterior: fichaAnterior,
+                ficha_nueva: ficha_medica
+            }]);
+
+        if (histError) {
+            console.error("Error al registrar historial de ficha médica:", histError);
+        }
+
         res.json({ success: true, data });
     } catch (err) {
         console.error("Error actualizando historial médico:", err);
         res.status(500).json({ success: false, message: "Error interno al actualizar la historia clínica." });
+    }
+});
+
+// GET /api/pacientes/:id/ficha/historial
+// Obtiene la bitácora de modificaciones de la ficha médica de un paciente.
+// Solo accesible por el paciente dueño o un médico.
+router.get('/pacientes/:id/ficha/historial', verifyOwnershipOrRole(['medico'], 'id'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('ficha_medica_historial')
+            .select(`
+                id,
+                ficha_anterior,
+                ficha_nueva,
+                created_at,
+                profiles (
+                    nombre_apellido,
+                    tipo_usuario
+                )
+            `)
+            .eq('paciente_id', id)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error("Error al obtener historial de cambios de ficha médica:", err);
+        res.status(500).json({ success: false, message: "Error interno al obtener el historial de modificaciones." });
     }
 });
 

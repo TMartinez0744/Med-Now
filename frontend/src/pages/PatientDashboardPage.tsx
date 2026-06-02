@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+import FichaHistorialModal from "../components/FichaHistorialModal";
 
 
 interface TurnoPaciente {
@@ -86,6 +87,7 @@ function PatientDashboardPage() {
     const [draftNumeroAfiliado, setDraftNumeroAfiliado] = useState("");
     const [savingName, setSavingName] = useState(false);
     const [perfilIncompleto, setPerfilIncompleto] = useState(false);
+    const [showHistorialCambiosModal, setShowHistorialCambiosModal] = useState(false);
 
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [currentPassword, setCurrentPassword] = useState("");
@@ -502,9 +504,25 @@ function PatientDashboardPage() {
                     </div>
                 </div>
 
-                <button className="dashboard-button" onClick={openHistorialModal} style={{ textAlign: "center" }}>
-                    Editar Historial
-                </button>
+                <div style={{ display: "flex", gap: 10 }}>
+                    <button className="dashboard-button" onClick={openHistorialModal} style={{ flex: 1, textAlign: "center" }}>
+                        Editar Historial
+                    </button>
+                    <button 
+                        className="dashboard-button" 
+                        onClick={() => setShowHistorialCambiosModal(true)} 
+                        style={{ 
+                            flex: 1, 
+                            textAlign: "center", 
+                            background: "white", 
+                            color: "#2f5cf5", 
+                            border: "1.5px solid #2f5cf5",
+                            fontWeight: 600
+                        }}
+                    >
+                        Ver Historial de Cambios
+                    </button>
+                </div>
             </div>
 
             {/* ── Banner perfil incompleto ── */}
@@ -847,6 +865,14 @@ function PatientDashboardPage() {
                         </button>
                     </div>
                 </div>
+            )}
+
+            {showHistorialCambiosModal && (
+                <FichaHistorialModal
+                    pacienteId={patientData.id}
+                    onClose={() => setShowHistorialCambiosModal(false)}
+                    currentUserId={patientData.id}
+                />
             )}
         </div>
     );

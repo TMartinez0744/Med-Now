@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
+import FichaHistorialModal from "./FichaHistorialModal";
 
 interface Props {
     pacienteId: string;
@@ -41,6 +42,7 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
     const [ficha, setFicha] = useState<FichaData | null>(null);
     const [loading, setLoading] = useState(true);
     const [exportando, setExportando] = useState(false);
+    const [showHistorialModal, setShowHistorialModal] = useState(false);
 
     useEffect(() => {
         const fetch = async () => {
@@ -244,26 +246,51 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
                             )}
                         </div>
 
-                        <button
-                            onClick={exportarPDF}
-                            disabled={exportando}
-                            style={{
-                                width: "100%", padding: "12px", borderRadius: 12, border: "1.5px solid #2f5cf5",
-                                background: "white", color: "#2f5cf5", fontWeight: 700, fontSize: 15,
-                                cursor: exportando ? "not-allowed" : "pointer", opacity: exportando ? 0.6 : 1,
-                                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                            }}
-                        >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                <polyline points="7 10 12 15 17 10"/>
-                                <line x1="12" y1="15" x2="12" y2="3"/>
-                            </svg>
-                            {exportando ? "Generando..." : "Exportar como PDF"}
-                        </button>
+                        <div style={{ display: "flex", gap: 10 }}>
+                            <button
+                                onClick={exportarPDF}
+                                disabled={exportando}
+                                style={{
+                                    flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #2f5cf5",
+                                    background: "white", color: "#2f5cf5", fontWeight: 700, fontSize: 14,
+                                    cursor: exportando ? "not-allowed" : "pointer", opacity: exportando ? 0.6 : 1,
+                                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                                }}
+                            >
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                    <polyline points="7 10 12 15 17 10"/>
+                                    <line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                {exportando ? "Generando..." : "Exportar PDF"}
+                            </button>
+                            
+                            <button
+                                onClick={() => setShowHistorialModal(true)}
+                                style={{
+                                    flex: 1, padding: "12px", borderRadius: 12, border: "1.5px solid #10b981",
+                                    background: "white", color: "#10b981", fontWeight: 700, fontSize: 14,
+                                    cursor: "pointer",
+                                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                                }}
+                            >
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                                Ver Historial
+                            </button>
+                        </div>
                     </>
                 )}
             </div>
+            {showHistorialModal && (
+                <FichaHistorialModal
+                    pacienteId={pacienteId}
+                    onClose={() => setShowHistorialModal(false)}
+                    currentUserId={medicoId}
+                />
+            )}
         </div>
     );
 }
