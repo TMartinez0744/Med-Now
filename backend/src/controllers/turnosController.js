@@ -104,6 +104,57 @@ class TurnosController {
             const { id } = req.params;
             const turno = await turnosService.cancel(id);
             res.json({ success: true, data: turno });
+
+            // Enviar correos de cancelación asíncronamente en segundo plano
+            (async () => {
+                try {
+                    const supabase = require('../config/supabase');
+                    const { sendCancellationEmail } = require('../services/emailService');
+
+                    const { data: t, error: fetchError } = await supabase
+                        .from('turnos')
+                        .select(`
+                            fecha_hora,
+                            pacientes (
+                                profiles (nombre_apellido),
+                                paciente_perfil (email)
+                            ),
+                            medicos (
+                                email,
+                                profiles (nombre_apellido)
+                            )
+                        `)
+                        .eq('id', id)
+                        .single();
+
+                    if (fetchError || !t) {
+                        console.error("❌ [Notificación] Error al obtener detalles para correos de cancelación:", fetchError);
+                        return;
+                    }
+
+                    const patientName = t.pacientes?.profiles?.nombre_apellido || "Paciente";
+                    const patientEmail = t.pacientes?.paciente_perfil?.email;
+                    
+                    const doctorName = t.medicos?.profiles?.nombre_apellido || "Médico";
+                    const doctorEmail = t.medicos?.email;
+
+                    const promises = [];
+                    if (patientEmail) {
+                        promises.push(sendCancellationEmail(patientEmail, patientName, doctorName, "paciente", t.fecha_hora));
+                    } else {
+                        console.warn(`⚠️  [Notificación] El paciente ${patientName} no tiene correo registrado.`);
+                    }
+                    if (doctorEmail) {
+                        promises.push(sendCancellationEmail(doctorEmail, doctorName, patientName, "medico", t.fecha_hora));
+                    } else {
+                        console.warn(`⚠️  [Notificación] El médico ${doctorName} no tiene correo registrado.`);
+                    }
+
+                    await Promise.all(promises);
+                } catch (err) {
+                    console.error("❌ [Notificación] Error al enviar emails de cancelación:", err);
+                }
+            })();
         } catch (error) {
             if (error.code === 'P2025') {
                 return res.status(404).json({ success: false, message: 'Turno no encontrado' });

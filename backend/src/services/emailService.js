@@ -168,7 +168,75 @@ async function sendReminderEmail(email, name, partnerName, role, fechaHora) {
     return sendEmail({ to: email, subject, text, html });
 }
 
+/**
+ * Notificación de cancelación de turno (para médico y paciente)
+ */
+async function sendCancellationEmail(email, name, partnerName, role, fechaHora) {
+    const formattedDate = new Date(fechaHora).toLocaleDateString("es-AR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+    });
+    const formattedTime = new Date(fechaHora).toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit"
+    }) + " hs";
+
+    const subject = "❌ Cancelación de Turno - MedNow";
+    
+    let text = "";
+    let html = "";
+
+    if (role === "medico") {
+        text = `Hola Dr/a. ${name},\n\nTe informamos que el turno agendado con el paciente ${partnerName} para el día ${formattedDate} a las ${formattedTime} ha sido CANCELADO.\n\nSaludos,\nEl equipo de MedNow`;
+        html = `
+            <div style="font-family: Arial, sans-serif; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border: 1px solid #f3f4f6; border-radius: 16px;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="display: inline-block; background: #dc2626; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; font-weight: 700; line-height: 40px; text-align: center;">✕</div>
+                    <h1 style="font-size: 20px; color: #1e3a8a; margin: 8px 0 0;">MedNow</h1>
+                </div>
+                <p style="font-size: 16px; font-weight: bold; color: #374151;">Hola Dr/a. ${name},</p>
+                <p style="font-size: 15px; color: #4b5563; line-height: 1.5;">Te informamos que se ha cancelado el siguiente turno en tu agenda:</p>
+                <div style="background: #fef2f2; border-radius: 12px; padding: 16px; margin: 20px 0; border-left: 4px solid #dc2626;">
+                    <p style="margin: 0 0 8px; font-size: 14px; color: #991b1b;"><strong>Estado:</strong> CANCELADO</p>
+                    <p style="margin: 0 0 8px; font-size: 14px; color: #4b5563;"><strong>Paciente:</strong> ${partnerName}</p>
+                    <p style="margin: 0 0 8px; font-size: 14px; color: #4b5563;"><strong>Fecha:</strong> ${formattedDate}</p>
+                    <p style="margin: 0; font-size: 14px; color: #4b5563;"><strong>Hora:</strong> ${formattedTime}</p>
+                </div>
+                <p style="font-size: 13px; color: #9ca3af; margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px; text-align: center;">
+                    El horario ha quedado libre en tu disponibilidad para ser reservado por otro paciente.
+                </p>
+            </div>
+        `;
+    } else {
+        text = `Hola ${name},\n\nTe informamos que tu turno médico programado con el/la Dr/a. ${partnerName} para el día ${formattedDate} a las ${formattedTime} ha sido CANCELADO.\n\nSaludos,\nEl equipo de MedNow`;
+        html = `
+            <div style="font-family: Arial, sans-serif; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border: 1px solid #f3f4f6; border-radius: 16px;">
+                <div style="text-align: center; margin-bottom: 24px;">
+                    <div style="display: inline-block; background: #dc2626; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; font-weight: 700; line-height: 40px; text-align: center;">✕</div>
+                    <h1 style="font-size: 20px; color: #1e3a8a; margin: 8px 0 0;">MedNow</h1>
+                </div>
+                <p style="font-size: 16px; font-weight: bold; color: #374151;">Hola ${name},</p>
+                <p style="font-size: 15px; color: #4b5563; line-height: 1.5;">Te informamos que tu turno médico ha sido cancelado:</p>
+                <div style="background: #fef2f2; border-radius: 12px; padding: 16px; margin: 20px 0; border-left: 4px solid #dc2626;">
+                    <p style="margin: 0 0 8px; font-size: 14px; color: #991b1b;"><strong>Estado:</strong> CANCELADO</p>
+                    <p style="margin: 0 0 8px; font-size: 14px; color: #4b5563;"><strong>Profesional:</strong> Dr/a. ${partnerName}</p>
+                    <p style="margin: 0 0 8px; font-size: 14px; color: #4b5563;"><strong>Fecha:</strong> ${formattedDate}</p>
+                    <p style="margin: 0; font-size: 14px; color: #4b5563;"><strong>Hora:</strong> ${formattedTime}</p>
+                </div>
+                <p style="font-size: 13px; color: #9ca3af; margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px; text-align: center;">
+                    Si necesitas reprogramar la consulta, podés buscar nuevos turnos disponibles desde el portal de MedNow.
+                </p>
+            </div>
+        `;
+    }
+
+    return sendEmail({ to: email, subject, text, html });
+}
+
 module.exports = {
     sendNewTurnoEmail,
-    sendReminderEmail
+    sendReminderEmail,
+    sendCancellationEmail
 };
