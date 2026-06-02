@@ -47,6 +47,7 @@ type SlotDB = {
     hora_fin: string;
     dia_nombre: string;
     sede: string | null;
+    duracion_turno?: number;
 };
 
 type Interval = {
@@ -75,9 +76,6 @@ function DoctorDashboardPage() {
     const doctorData = JSON.parse(localStorage.getItem("doctorData") || "{}");
     const medicoId: string = doctorData.id ?? "";
 
-    const capitalize = (text: string) =>
-        text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
-
     const buildDoctorName = (raw: string) =>
         raw
             ? raw.match(/^Dr[a]?\./i) ? raw : `Dr. ${raw}`
@@ -87,26 +85,61 @@ function DoctorDashboardPage() {
 
     const [displayName, setDisplayName] = useState(buildDoctorName(doctorData.nombre_apellido ?? ""));
     const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-    const [draftNombre, setDraftNombre] = useState(doctorData.nombre_apellido ?? "");
+    
+    const [draftName, setDraftName] = useState("");
+    const [draftLastName, setDraftLastName] = useState("");
+    const [draftDni, setDraftDni] = useState(doctorData.licenseNumber ?? "");
+    const [draftEmail, setDraftEmail] = useState("");
+    
     const [savingName, setSavingName] = useState(false);
+    const [email, setEmail] = useState("");
 
-    const saveProfileName = async () => {
-        if (!draftNombre.trim()) return;
+    const openEditProfile = () => {
+        const nameParts = (doctorData.nombre_apellido ?? "").trim().split(/\s+/);
+        setDraftName(nameParts[0] || "");
+        setDraftLastName(nameParts.slice(1).join(" ") || "");
+        setDraftDni(doctorData.licenseNumber ?? "");
+        setDraftEmail(email);
+        setShowEditProfileModal(true);
+    };
+
+    const saveProfile = async () => {
+        if (!draftName.trim()) { showToast("El nombre no puede estar vacío"); return; }
+        if (draftEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draftEmail.trim())) {
+            showToast("El email no tiene un formato válido"); return;
+        }
         setSavingName(true);
+        const nombreCompleto = `${draftName.trim()} ${draftLastName.trim()}`.trim();
         try {
-            const res = await apiFetch(`/api/profiles/${medicoId}`, {
-                method: "PATCH",
-                body: JSON.stringify({ nombre_apellido: draftNombre.trim() }),
-            });
-            if (res.ok) {
-                const updated = { ...doctorData, nombre_apellido: draftNombre.trim() };
+            const [resProfile, resMedico] = await Promise.all([
+                apiFetch(`/api/profiles/${medicoId}`, {
+                    method: "PATCH",
+                    body: JSON.stringify({ nombre_apellido: nombreCompleto, dni: draftDni.trim() }),
+                }),
+                apiFetch(`/api/medicos/${medicoId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: draftEmail.trim() || null }),
+                }),
+            ]);
+            
+            if (resProfile.ok && resMedico.ok) {
+                const updated = { 
+                    ...doctorData, 
+                    nombre_apellido: nombreCompleto, 
+                    licenseNumber: draftDni.trim() 
+                };
                 localStorage.setItem("doctorData", JSON.stringify(updated));
-                setDisplayName(buildDoctorName(draftNombre.trim()));
+                localStorage.setItem("user", draftDni.trim());
+                setDisplayName(buildDoctorName(nombreCompleto));
+                setEmail(draftEmail.trim());
                 setShowEditProfileModal(false);
+                showToast("Perfil actualizado", "success");
             } else {
                 showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
             }
-        } catch {
+        } catch (error) {
+            console.error(error);
             showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
         }
         setSavingName(false);
@@ -123,7 +156,26 @@ function DoctorDashboardPage() {
         doctorData.sedes ?? []
     );
     const [obrasSociales, setObrasSociales] = useState<string[]>([]);
-    const isPerfilIncompleto = specialties.length === 0 || hospitals.length === 0;
+    const isPerfilIncompleto = specialties.length === 0 || hospitals.length === 0 || !email;
+
+    useEffect(() => {
+        if (!medicoId) return;
+        apiFetch(`/api/medicos/${medicoId}`)
+            .then(r => r.json())
+            .then(({ data }) => {
+                if (data) {
+                    setEmail(data.email ?? "");
+                    setDraftEmail(data.email ?? "");
+                    if (data.profiles) {
+                        const nameParts = (data.profiles.nombre_apellido ?? "").trim().split(/\s+/);
+                        setDraftName(nameParts[0] || "");
+                        setDraftLastName(nameParts.slice(1).join(" ") || "");
+                        setDraftDni(data.profiles.dni ?? "");
+                    }
+                }
+            })
+            .catch(console.error);
+    }, [medicoId]);
 
     useEffect(() => {
         if (!medicoId) return;
@@ -509,6 +561,33 @@ function DoctorDashboardPage() {
                 </div>
             </div>
 
+            {/* ── Banner perfil incompleto ── */}
+            {isPerfilIncompleto && (
+                <div className="dashboard-card" style={{
+                    background: "#fffbeb", border: "1.5px solid #fbbf24",
+                    display: "flex", alignItems: "flex-start", gap: 12,
+                    margin: "0 0 20px"
+                }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" y1="8" x2="12" y2="12" />
+                        <line x1="12" y1="16" x2="12.01" y2="16" />
+                    </svg>
+                    <div style={{ flex: 1 }}>
+                        <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 14, color: "#92400e" }}>Completá tu perfil profesional</p>
+                        <p style={{ margin: "0 0 8px", fontSize: 13, color: "#b45309" }}>
+                            Falta configurar tus especialidades, sedes de atención o tu dirección de correo electrónico para recibir notificaciones de nuevos turnos.
+                        </p>
+                        <button
+                            onClick={openEditProfile}
+                            style={{ background: "#d97706", color: "white", border: "none", borderRadius: 8, padding: "6px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+                        >
+                            Completar ahora
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* ── Card Próximos Turnos ── */}
             <div className="dashboard-card">
                 <div className="profile-block-header" style={{ marginBottom: 14 }}>
@@ -781,7 +860,7 @@ function DoctorDashboardPage() {
                             ⚠️ Perfil profesional incompleto
                         </p>
                         <p style={{ margin: 0, fontSize: 13, color: "#b45309" }}>
-                            Debés configurar al menos una especialidad y una sede de atención en la sección "Perfil Médico" para poder publicar tus horarios de atención.
+                            Debés configurar al menos una especialidad, una sede de atención y tu correo electrónico de contacto en tu Perfil para poder publicar tus horarios de atención.
                         </p>
                     </div>
                 )}
@@ -952,7 +1031,7 @@ function DoctorDashboardPage() {
 
             <div className="dashboard-card">
                 <h3>Configuración</h3>
-                <button className="dashboard-button" onClick={() => { setDraftNombre(doctorData.nombre_apellido ?? ""); setShowEditProfileModal(true); }}>Editar Perfil</button>
+                <button className="dashboard-button" onClick={openEditProfile}>Editar Perfil</button>
                 <button className="dashboard-button" onClick={() => { setCurrentPassword(""); setNewPassword(""); setConfirmPassword(""); setShowPasswordModal(true); }}>Cambiar Contraseña</button>
                 <button className="dashboard-button">Notificaciones</button>
                 <button className="dashboard-button logout" onClick={handleLogout}>
@@ -977,21 +1056,50 @@ function DoctorDashboardPage() {
             {/* modal editar perfil */}
             {showEditProfileModal && (
                 <div style={overlayStyle} onClick={() => setShowEditProfileModal(false)}>
-                    <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+                    <div style={{ ...modalStyle, maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
                         <div style={modalHeaderStyle}>
                             <h3 style={{ margin: 0, fontSize: 18 }}>Editar Perfil</h3>
                             <button onClick={() => setShowEditProfileModal(false)} style={closeBtnStyle}>✕</button>
                         </div>
-                        <label style={{ fontSize: 13, color: "#6b7280", fontWeight: 600, display: "block", marginBottom: 4 }}>Nombre y apellido</label>
+
+                        <label style={labelStyle}>Nombre</label>
                         <input
                             className="auth-input"
-                            placeholder="Ej: García López"
-                            value={draftNombre}
-                            onChange={(e) => setDraftNombre(e.target.value)}
-                            style={{ marginBottom: 20 }}
-                            autoFocus
+                            placeholder="Nombre"
+                            value={draftName}
+                            onChange={(e) => setDraftName(e.target.value)}
+                            style={{ marginBottom: 12 }}
                         />
-                        <button className="auth-button" onClick={saveProfileName} disabled={savingName}>
+
+                        <label style={labelStyle}>Apellido</label>
+                        <input
+                            className="auth-input"
+                            placeholder="Apellido"
+                            value={draftLastName}
+                            onChange={(e) => setDraftLastName(e.target.value)}
+                            style={{ marginBottom: 12 }}
+                        />
+
+                        <label style={labelStyle}>DNI / Matrícula</label>
+                        <input
+                            className="auth-input"
+                            placeholder="DNI o Matrícula"
+                            value={draftDni}
+                            onChange={(e) => setDraftDni(e.target.value)}
+                            style={{ marginBottom: 12 }}
+                        />
+
+                        <label style={labelStyle}>Email</label>
+                        <input
+                            className="auth-input"
+                            placeholder="ejemplo@mail.com"
+                            type="email"
+                            value={draftEmail}
+                            onChange={(e) => setDraftEmail(e.target.value)}
+                            style={{ marginBottom: 24 }}
+                        />
+
+                        <button className="auth-button" onClick={saveProfile} disabled={savingName}>
                             {savingName ? "Guardando..." : "Guardar cambios"}
                         </button>
                     </div>

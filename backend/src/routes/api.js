@@ -48,6 +48,35 @@ router.get('/medicos', async (req, res) => {
     }
 });
 
+// GET /api/medicos/:id
+// Obtiene el perfil completo de un médico. Accesible por el propio médico o pacientes autorizados.
+router.get('/medicos/:id', verifyOwnershipOrRole(['paciente', 'admin'], 'id'), async (req, res) => {
+    const { id } = req.params;
+    try {
+        const { data, error } = await supabase
+            .from('medicos')
+            .select(`
+                id,
+                especialidades,
+                sedes,
+                email,
+                recibir_turnos,
+                perfil_completo,
+                profiles (nombre_apellido, dni)
+            `)
+            .eq('id', id)
+            .single();
+
+        if (error) throw error;
+        if (!data) return res.status(404).json({ success: false, message: 'Médico no encontrado' });
+
+        res.json({ success: true, data });
+    } catch (err) {
+        console.error("Error obteniendo médico por ID:", err);
+        res.status(500).json({ success: false, message: "Error interno al obtener el perfil médico." });
+    }
+});
+
 // GET /api/medicos/:id/obras-sociales
 // Accesible por el médico propietario o cualquier paciente/usuario autenticado
 router.get('/medicos/:id/obras-sociales', async (req, res) => {
@@ -86,15 +115,20 @@ router.put('/medicos/:id/obras-sociales', verifyOwnershipOrRole([], 'id'), async
 });
 
 // PUT /api/medicos/:id
-// Solo el médico propietario puede actualizar sus especialidades y sedes
+// Solo el médico propietario puede actualizar sus especialidades, sedes y email
 router.put('/medicos/:id', verifyOwnershipOrRole([], 'id'), async (req, res) => {
     const { id } = req.params;
-    const { especialidades, sedes } = req.body;
+    const { especialidades, sedes, email } = req.body;
     
     try {
+        const updateData = {};
+        if (especialidades !== undefined) updateData.especialidades = especialidades;
+        if (sedes !== undefined) updateData.sedes = sedes;
+        if (email !== undefined) updateData.email = email;
+
         const { data, error } = await supabase
             .from('medicos')
-            .update({ especialidades, sedes })
+            .update(updateData)
             .eq('id', id)
             .select()
             .single();
@@ -607,13 +641,14 @@ async function syncMedicoCompleteness(medicoId) {
     try {
         const { data: medico } = await supabase
             .from('medicos')
-            .select('especialidades, sedes')
+            .select('especialidades, sedes, email')
             .eq('id', medicoId)
             .single();
 
         const isComplete = !!(
             medico?.especialidades && Array.isArray(medico.especialidades) && medico.especialidades.length > 0 &&
-            medico?.sedes && Array.isArray(medico.sedes) && medico.sedes.length > 0
+            medico?.sedes && Array.isArray(medico.sedes) && medico.sedes.length > 0 &&
+            medico?.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(medico.email)
         );
 
         await supabase
