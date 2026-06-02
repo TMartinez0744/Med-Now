@@ -22,6 +22,7 @@ model medicos {
   id                    String                 @id @db.Uuid
   especialidades        String[]
   sedes                 String[]
+  email                 String?
   recibir_turnos        Boolean?               @default(true)
   perfil_completo       Boolean                @default(false)
   profiles              profiles               @relation(fields: [id], references: [id], onDelete: Cascade)
@@ -43,15 +44,16 @@ model pacientes {
 }
 
 model turnos {
-  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  paciente_id     String    @db.Uuid
-  medico_id       String    @db.Uuid
-  fecha_hora      DateTime  @db.Timestamptz(6)
-  motivo_consulta String?
-  estado          String?   @default("pendiente")
-  created_at      DateTime? @default(now()) @db.Timestamptz(6)
-  pacientes       pacientes @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
-  medicos         medicos   @relation(fields: [medico_id], references: [id], onDelete: Cascade)
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paciente_id          String    @db.Uuid
+  medico_id            String    @db.Uuid
+  fecha_hora           DateTime  @db.Timestamptz(6)
+  motivo_consulta      String?
+  estado               String?   @default("pendiente")
+  recordatorio_enviado Boolean?  @default(false)
+  created_at           DateTime? @default(now()) @db.Timestamptz(6)
+  pacientes            pacientes @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
+  medicos              medicos   @relation(fields: [medico_id], references: [id], onDelete: Cascade)
 }
 
 model centros_emergencia {

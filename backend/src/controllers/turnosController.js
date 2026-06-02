@@ -16,6 +16,31 @@ class TurnosController {
 
             const turno = await turnosService.create({ paciente_id, medico_id, fecha_hora, notas_triage });
             res.status(201).json({ success: true, data: turno });
+
+            // Enviar notificación de nuevo turno por email al médico en segundo plano
+            (async () => {
+                try {
+                    const supabase = require('../config/supabase');
+                    const { sendNewTurnoEmail } = require('../services/emailService');
+
+                    const [{ data: patientProfile }, { data: doctorInfo }] = await Promise.all([
+                        supabase.from('profiles').select('nombre_apellido').eq('id', paciente_id).single(),
+                        supabase.from('medicos').select('email, profiles (nombre_apellido)').eq('id', medico_id).single()
+                    ]);
+
+                    const doctorEmail = doctorInfo?.email;
+                    const doctorName = doctorInfo?.profiles?.nombre_apellido || "Médico";
+                    const patientName = patientProfile?.nombre_apellido || "Paciente";
+
+                    if (doctorEmail) {
+                        await sendNewTurnoEmail(doctorEmail, doctorName, patientName, fecha_hora);
+                    } else {
+                        console.warn(`⚠️ [Notificación] El médico ${doctorName} no tiene correo registrado.`);
+                    }
+                } catch (err) {
+                    console.error("❌ [Notificación] Error al enviar email de nuevo turno:", err);
+                }
+            })();
         } catch (error) {
             if (error.code === 'TURNO_DUPLICADO') {
                 return res.status(409).json({ success: false, message: error.message });
