@@ -6,6 +6,7 @@ require("dotenv").config();
 const authRoutes = require("./routes/authRoutes");
 const apiRoutes = require("./routes/api");
 const chatRoomRoutes = require("./routes/chatRoomRoutes");
+const derivacionesRoutes = require("./routes/derivacionesRoutes");
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.get("/", (req, res) => {
 // Rutas
 app.use("/api/auth", authRoutes);
 app.use("/api/chats", chatRoomRoutes);
+app.use("/api/derivaciones", derivacionesRoutes);
 app.use("/api", apiRoutes);
 
 // Puerto

@@ -96,6 +96,7 @@ type TurnoBackend = {
     id: string;
     fecha_hora: string;
     estado: string;
+    medico_id: string;
     medicos: {
         especialidades: string[];
         profiles: { nombre_apellido: string };

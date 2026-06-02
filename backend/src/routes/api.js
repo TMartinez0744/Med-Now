@@ -575,7 +575,22 @@ router.patch('/profiles/:id', verifyOwnershipOrRole([], 'id'), async (req, res) 
     const { nombre_apellido, dni } = req.body;
     const updates = {};
     if (nombre_apellido) updates.nombre_apellido = nombre_apellido;
-    if (dni) updates.dni = dni;
+    if (dni) {
+        const dniLimpio = String(dni).trim();
+        const { data: existente } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('dni', dniLimpio)
+            .neq('id', id)
+            .maybeSingle();
+        if (existente) {
+            return res.status(409).json({
+                success: false,
+                message: 'Ese DNI ya está registrado en otra cuenta',
+            });
+        }
+        updates.dni = dniLimpio;
+    }
     try {
         const { data, error } = await supabase
             .from('profiles')
@@ -583,7 +598,12 @@ router.patch('/profiles/:id', verifyOwnershipOrRole([], 'id'), async (req, res) 
             .eq('id', id)
             .select()
             .single();
-        if (error) throw error;
+        if (error) {
+            if (error.code === '23505') {
+                return res.status(409).json({ success: false, message: 'Ese DNI ya está registrado en otra cuenta' });
+            }
+            throw error;
+        }
 
         // Disparador de sincronización de completitud
         if (data.tipo_usuario === 'paciente') {

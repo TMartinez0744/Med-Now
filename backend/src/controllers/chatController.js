@@ -55,6 +55,12 @@ class ChatController {
                     message: 'Tu consulta no pudo ser procesada por los filtros de seguridad. Reformulala.',
                 });
             }
+            if (error.status === 429) {
+                return res.status(429).json({
+                    success: false,
+                    message: 'AlivIA está sobrecargado. Probá pedirle un médico humano con el botón "Solicitar médico" arriba.',
+                });
+            }
             console.error('Error en ChatController.send:', error);
             res.status(500).json({
                 success: false,

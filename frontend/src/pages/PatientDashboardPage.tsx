@@ -125,18 +125,24 @@ function PatientDashboardPage() {
             .then(r => r.json())
             .then(({ data }) => {
                 const hasProvisionalDni = isProvisionalDni(patientData.dni);
+                const fallbackEmail = patientData.email ?? "";
                 if (data) {
-                    setDraftEmail(data.email ?? "");
+                    const emailFinal = data.email ?? fallbackEmail;
+                    setDraftEmail(emailFinal);
                     setDraftFechaNacimiento(data.fecha_nacimiento ?? "");
                     setDraftGenero(data.genero ?? "");
                     setDraftNumeroAfiliado(data.numero_afiliado ?? "");
                     setPerfilIncompleto(hasProvisionalDni || !data.genero || !data.fecha_nacimiento || !data.email || !data.numero_afiliado);
                 } else {
+                    setDraftEmail(fallbackEmail);
                     setPerfilIncompleto(true);
                 }
             })
-            .catch(() => setPerfilIncompleto(true));
-    }, [patientData.id, patientData.dni]);
+            .catch(() => {
+                setDraftEmail(patientData.email ?? "");
+                setPerfilIncompleto(true);
+            });
+    }, [patientData.id, patientData.dni, patientData.email]);
 
     const openEditProfile = () => {
         setDraftName(patientData.name ?? "");
@@ -174,7 +180,10 @@ function PatientDashboardPage() {
                 setShowEditProfileModal(false);
                 showToast("Perfil actualizado", "success");
             } else {
-                showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+                const profileBody = await resProfile.json().catch(() => null);
+                const perfilBody = await resPerfil.json().catch(() => null);
+                const msg = profileBody?.message || perfilBody?.message || "No se pudieron guardar los cambios. Intentá de nuevo.";
+                showToast(msg);
             }
         } catch {
             showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
@@ -241,6 +250,30 @@ function PatientDashboardPage() {
             .then(({ data }) => setProximoTurno((data ?? [])[0] ?? null))
             .catch(console.error)
             .finally(() => setLoadingTurnos(false));
+    }, [patientData.id]);
+
+    // Cargar mensajes sin leer por médico (para mostrar punto naranja en "Chatear")
+    const [unreadByMedico, setUnreadByMedico] = useState<Record<string, number>>({});
+    useEffect(() => {
+        if (!patientData.id) return;
+        let active = true;
+        const fetchUnread = async () => {
+            try {
+                const res = await apiFetch("/api/chats/unread-by-counterparty");
+                if (!res.ok) return;
+                const json = await res.json();
+                if (active && json?.success) setUnreadByMedico(json.data ?? {});
+            } catch { /* silencioso */ }
+        };
+        fetchUnread();
+        const interval = window.setInterval(fetchUnread, 15000);
+        const onFocus = () => fetchUnread();
+        window.addEventListener("focus", onFocus);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+            window.removeEventListener("focus", onFocus);
+        };
     }, [patientData.id]);
 
     const handleStartChat = async (medicoId: string) => {
@@ -393,19 +426,12 @@ function PatientDashboardPage() {
                             </div>
                             <button
                                 onClick={() => handleStartChat(proximoTurno.medico_id)}
-                                style={{
-                                    flexShrink: 0,
-                                    padding: "8px 14px",
-                                    borderRadius: 10,
-                                    border: "none",
-                                    background: "#2f5cf5",
-                                    color: "white",
-                                    fontSize: 13,
-                                    fontWeight: 600,
-                                    cursor: "pointer"
-                                }}
+                                className="chatear-btn"
                             >
                                 Chatear
+                                {(unreadByMedico[proximoTurno.medico_id] ?? 0) > 0 && (
+                                    <span className="chatear-btn-dot" />
+                                )}
                             </button>
                         </div>
                         <a

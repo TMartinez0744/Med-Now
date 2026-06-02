@@ -79,16 +79,17 @@ model disponibilidad {
 }
 
 model chat_rooms {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  paciente_id String   @db.Uuid
-  medico_id   String   @db.Uuid
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
-  pacientes   pacientes @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
-  medicos     medicos   @relation(fields: [medico_id], references: [id], onDelete: Cascade)
-  mensajes    mensajes[]
-
-  @@unique([paciente_id, medico_id])
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paciente_id    String   @db.Uuid
+  medico_id      String   @db.Uuid
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime @default(now()) @db.Timestamptz(6)
+  tipo           String?  @default("turno")
+  derivacion_id  String?  @db.Uuid
+  pacientes      pacientes @relation(fields: [paciente_id], references: [id], onDelete: Cascade)
+  medicos        medicos   @relation(fields: [medico_id], references: [id], onDelete: Cascade)
+  mensajes       mensajes[]
+  derivacion     derivaciones_pendientes? @relation(fields: [derivacion_id], references: [id], onDelete: SetNull)
 }
 
 model mensajes {
@@ -98,7 +99,22 @@ model mensajes {
   contenido  String
   leido      Boolean    @default(false)
   created_at DateTime   @default(now()) @db.Timestamptz(6)
+  tipo       String?    @default("texto")
   chat_rooms chat_rooms @relation(fields: [room_id], references: [id], onDelete: Cascade)
+}
+
+model derivaciones_pendientes {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paciente_id  String       @db.Uuid
+  contexto     Json
+  resumen      String?
+  estado       String       @default("pendiente")
+  medico_id    String?      @db.Uuid
+  room_id      String?      @db.Uuid
+  created_at   DateTime?    @default(now()) @db.Timestamptz(6)
+  aceptada_at  DateTime?    @db.Timestamptz(6)
+  cancelada_at DateTime?    @db.Timestamptz(6)
+  chat_rooms   chat_rooms[]
 }
 
 model paciente_perfil {

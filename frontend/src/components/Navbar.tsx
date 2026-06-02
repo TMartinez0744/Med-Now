@@ -6,7 +6,6 @@ type NavbarProps = {
 
 function Navbar({ role }: NavbarProps) {
     const profilePath = role === "doctor" ? "/doctor/dashboard" : "/patient/dashboard";
-    const turnosPath = role === "doctor" ? "/doctor/turnos" : "/patient/turnos";
 
     return (
         <nav className="navbar">
@@ -26,16 +25,12 @@ function Navbar({ role }: NavbarProps) {
             >
                 Mapa
             </NavLink>
-            {role === "patient" ? (
-                <NavLink
-                    to="/patient/chat"
-                    className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-                >
-                    Chat
-                </NavLink>
-            ) : (
-                <span className="nav-item disabled">Chat</span>
-            )}
+            <NavLink
+                to={role === "patient" ? "/patient/chat" : "/doctor/chat"}
+                className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
+            >
+                Chat
+            </NavLink>
             <NavLink
                 to={profilePath}
                 className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}

@@ -91,6 +91,7 @@ function AuthCallback() {
 
                 const nombreCompleto = result.user.nombre_apellido ?? "";
                 const partes = nombreCompleto.trim().split(" ");
+                const googleEmail = session.user?.email ?? "";
 
                 localStorage.setItem(
                     "patientData",
@@ -100,6 +101,7 @@ function AuthCallback() {
                         name: partes[0] ?? "",
                         lastName: partes.slice(1).join(" ") ?? "",
                         nombre_apellido: nombreCompleto,
+                        email: googleEmail,
                     })
                 );
 

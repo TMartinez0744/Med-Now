@@ -36,14 +36,14 @@ class ChatRoomController {
                 });
             }
 
-            // Buscar si ya existe la sala de chat
-            let room = await prisma.chat_rooms.findUnique({
+            // Buscar si ya existe una sala "turno" entre estos dos
+            let room = await prisma.chat_rooms.findFirst({
                 where: {
-                    paciente_id_medico_id: {
-                        paciente_id,
-                        medico_id
-                    }
-                }
+                    paciente_id,
+                    medico_id,
+                    tipo: 'turno',
+                },
+                orderBy: { created_at: 'desc' },
             });
 
             // Si no existe, la creamos
@@ -51,8 +51,9 @@ class ChatRoomController {
                 room = await prisma.chat_rooms.create({
                     data: {
                         paciente_id,
-                        medico_id
-                    }
+                        medico_id,
+                        tipo: 'turno',
+                    },
                 });
             }
 
@@ -89,7 +90,7 @@ class ChatRoomController {
             // Para enriquecer el resultado con la información del perfil del destinatario
             const enrichedRooms = await Promise.all(rooms.map(async (room) => {
                 const targetId = tokenUserRole === 'paciente' ? room.medico_id : room.paciente_id;
-                
+
                 // Buscar perfil del destinatario
                 const profile = await prisma.profiles.findUnique({
                     where: { id: targetId },
@@ -100,6 +101,16 @@ class ChatRoomController {
                     }
                 });
 
+                // Resumen de la derivación si aplica
+                let resumen = null;
+                if (room.derivacion_id) {
+                    const d = await prisma.derivaciones_pendientes.findUnique({
+                        where: { id: room.derivacion_id },
+                        select: { resumen: true },
+                    });
+                    resumen = d?.resumen ?? null;
+                }
+
                 return {
                     ...room,
                     destinatario: profile ? {
@@ -107,7 +118,8 @@ class ChatRoomController {
                         nombre_apellido: profile.nombre_apellido,
                         dni: profile.dni,
                         tipo_usuario: profile.tipo_usuario
-                    } : null
+                    } : null,
+                    resumen_derivacion: resumen,
                 };
             }));
 
@@ -138,7 +150,17 @@ class ChatRoomController {
                 return res.status(403).json({ success: false, message: 'Acceso denegado: No perteneces a esta sala de chat.' });
             }
 
-            // 2. Obtener mensajes ordenados por fecha
+            // 2. Marcar como leídos los mensajes dirigidos al usuario actual
+            await prisma.mensajes.updateMany({
+                where: {
+                    room_id: roomId,
+                    sender_id: { not: tokenUserId },
+                    leido: false,
+                },
+                data: { leido: true },
+            });
+
+            // 3. Obtener mensajes ordenados por fecha
             const messages = await prisma.mensajes.findMany({
                 where: { room_id: roomId },
                 orderBy: { created_at: 'asc' }
@@ -151,16 +173,84 @@ class ChatRoomController {
         }
     }
 
+    // GET /api/chats/unread-count
+    // Devuelve la cantidad total de mensajes sin leer dirigidos al usuario actual
+    async getUnreadCount(req, res) {
+        const { id: userId } = req.user;
+        try {
+            const count = await prisma.mensajes.count({
+                where: {
+                    leido: false,
+                    sender_id: { not: userId },
+                    chat_rooms: {
+                        OR: [
+                            { paciente_id: userId },
+                            { medico_id: userId },
+                        ],
+                    },
+                },
+            });
+            return res.json({ success: true, data: { count } });
+        } catch (error) {
+            console.error('Error en ChatRoomController.getUnreadCount:', error);
+            return res.status(500).json({ success: false, message: 'Error al obtener mensajes sin leer.' });
+        }
+    }
+
+    // GET /api/chats/unread-by-counterparty
+    // Devuelve un map { counterpartyId: count } con los no leídos por la otra persona del chat
+    async getUnreadByCounterparty(req, res) {
+        const { id: userId, tipo_usuario } = req.user;
+        try {
+            const rooms = await prisma.chat_rooms.findMany({
+                where: {
+                    OR: [
+                        { paciente_id: userId },
+                        { medico_id: userId },
+                    ],
+                },
+                select: { id: true, paciente_id: true, medico_id: true },
+            });
+
+            if (rooms.length === 0) {
+                return res.json({ success: true, data: {} });
+            }
+
+            const counts = await Promise.all(rooms.map(async (room) => {
+                const counterpartyId = tipo_usuario === 'paciente' ? room.medico_id : room.paciente_id;
+                const count = await prisma.mensajes.count({
+                    where: {
+                        room_id: room.id,
+                        sender_id: { not: userId },
+                        leido: false,
+                    },
+                });
+                return { counterpartyId, count };
+            }));
+
+            const map = {};
+            for (const { counterpartyId, count } of counts) {
+                if (count > 0) map[counterpartyId] = count;
+            }
+            return res.json({ success: true, data: map });
+        } catch (error) {
+            console.error('Error en ChatRoomController.getUnreadByCounterparty:', error);
+            return res.status(500).json({ success: false, message: 'Error al obtener mensajes sin leer.' });
+        }
+    }
+
     // POST /api/chats/:roomId/mensajes
     // Envía un mensaje a la sala de chat
     async sendMessage(req, res) {
         const { roomId } = req.params;
-        const { contenido } = req.body;
+        const { contenido, tipo } = req.body;
         const { id: tokenUserId } = req.user;
 
         if (!contenido || !contenido.trim()) {
             return res.status(400).json({ success: false, message: 'El contenido del mensaje no puede estar vacío.' });
         }
+
+        const tipoValido = ['texto', 'sistema', 'contexto'].includes(tipo) ? tipo : 'texto';
 
         try {
             // 1. Verificar existencia de la sala y participación del usuario
@@ -182,6 +272,7 @@ class ChatRoomController {
                     room_id: roomId,
                     sender_id: tokenUserId,
                     contenido: contenido.trim(),
+                    tipo: tipoValido,
                     leido: false
                 }
             });

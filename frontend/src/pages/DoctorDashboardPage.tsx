@@ -192,9 +192,14 @@ function DoctorDashboardPage() {
     const [loadingTurnos, setLoadingTurnos] = useState(false);
     const [cancelandoId, setCelandoId] = useState<string | null>(null);
     const [fichaAbierta, setFichaAbierta] = useState<{ id: string; nombre: string } | null>(null);
+    const [confirmCancelId, setConfirmCancelId] = useState<string | null>(null);
 
-    const cancelarTurno = async (id: string) => {
-        if (!confirm("¿Cancelar este turno?")) return;
+    const cancelarTurno = (id: string) => setConfirmCancelId(id);
+
+    const confirmarCancelarTurno = async () => {
+        const id = confirmCancelId;
+        if (!id) return;
+        setConfirmCancelId(null);
         setCelandoId(id);
         try {
             const res = await apiFetch(`/api/turnos/${id}/cancelar`, { method: "PATCH" });
@@ -275,6 +280,30 @@ function DoctorDashboardPage() {
             .then(({ data }) => setTurnos(data ?? []))
             .catch(console.error)
             .finally(() => setLoadingTurnos(false));
+    }, [medicoId]);
+
+    // Cargar mensajes sin leer por paciente (para mostrar punto naranja en "Chatear")
+    const [unreadByPaciente, setUnreadByPaciente] = useState<Record<string, number>>({});
+    useEffect(() => {
+        if (!medicoId) return;
+        let active = true;
+        const fetchUnread = async () => {
+            try {
+                const res = await apiFetch("/api/chats/unread-by-counterparty");
+                if (!res.ok) return;
+                const json = await res.json();
+                if (active && json?.success) setUnreadByPaciente(json.data ?? {});
+            } catch { /* silencioso */ }
+        };
+        fetchUnread();
+        const interval = window.setInterval(fetchUnread, 15000);
+        const onFocus = () => fetchUnread();
+        window.addEventListener("focus", onFocus);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+            window.removeEventListener("focus", onFocus);
+        };
     }, [medicoId]);
 
     // Cuando cambian las sedes, asegurar que selectedSede sea válida
@@ -646,18 +675,12 @@ function DoctorDashboardPage() {
                                     <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
                                         <button
                                             onClick={() => handleStartChat(turno.paciente_id)}
-                                            style={{
-                                                padding: "7px 13px",
-                                                borderRadius: 10,
-                                                border: "none",
-                                                background: "#2f5cf5",
-                                                color: "white",
-                                                fontSize: 13,
-                                                fontWeight: 600,
-                                                cursor: "pointer"
-                                            }}
+                                            className="chatear-btn"
                                         >
                                             Chatear
+                                            {(unreadByPaciente[turno.paciente_id] ?? 0) > 0 && (
+                                                <span className="chatear-btn-dot" />
+                                            )}
                                         </button>
                                         <button
                                             onClick={() => cancelarTurno(turno.id)}
@@ -1040,6 +1063,26 @@ function DoctorDashboardPage() {
             </div>
 
             <Navbar role="doctor" />
+
+            {/* confirmación cancelar turno */}
+            {confirmCancelId !== null && (
+                <div className="chat-confirm-overlay" onClick={() => setConfirmCancelId(null)}>
+                    <div className="chat-confirm-dialog" onClick={(e) => e.stopPropagation()}>
+                        <h4 className="chat-confirm-title">¿Cancelar este turno?</h4>
+                        <p className="chat-confirm-text">
+                            Se le va a notificar al paciente. Esta acción no se puede deshacer.
+                        </p>
+                        <div className="chat-confirm-actions">
+                            <button className="chat-confirm-cancel" onClick={() => setConfirmCancelId(null)}>
+                                Volver
+                            </button>
+                            <button className="chat-confirm-delete" onClick={confirmarCancelarTurno}>
+                                Cancelar turno
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* ficha paciente */}
             {fichaAbierta && (

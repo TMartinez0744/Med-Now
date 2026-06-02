@@ -183,7 +183,7 @@ const googleLogin = async (req, res) => {
             // Generar un DNI provisional único (rango 99xxxxxx para identificarlo como provisional)
             const digits = userId.replace(/\D/g, '');
             const provisionalDni = '99' + (digits.slice(0, 6).padStart(6, '0') || String(Math.floor(100000 + Math.random() * 900000)));
-            
+
             // Crear perfil base
             await supabase.from('profiles').insert([{
                 id: userId,
@@ -195,14 +195,6 @@ const googleLogin = async (req, res) => {
             // Crear rol paciente
             await supabase.from('pacientes').insert([{ id: userId, obra_social: null }]);
 
-            // Crear paciente_perfil
-            await supabaseSedes.from('paciente_perfil').insert([{
-                paciente_id: userId,
-                genero: null,
-                fecha_nacimiento: null,
-                email: email,
-            }]);
-
             profile = {
                 id: userId,
                 dni: provisionalDni,
@@ -211,24 +203,22 @@ const googleLogin = async (req, res) => {
             };
         }
 
-        // Asegurarse de que el paciente tenga el registro de perfil extendido y el email esté guardado
-        if (profile.tipo_usuario === 'paciente') {
+        // Sincronizar el email de Google en paciente_perfil (solo si no hay uno cargado)
+        if (profile.tipo_usuario === 'paciente' && email) {
             const { data: perfil } = await supabaseSedes
                 .from('paciente_perfil')
-                .select('email')
+                .select('paciente_id, email')
                 .eq('paciente_id', profile.id)
                 .maybeSingle();
 
             if (!perfil) {
-                // Crear si no existe
                 await supabaseSedes.from('paciente_perfil').insert([{
                     paciente_id: profile.id,
                     genero: null,
                     fecha_nacimiento: null,
                     email: email,
                 }]);
-            } else if (!perfil.email && email) {
-                // Si existe pero no tiene email, guardar el de Google
+            } else if (!perfil.email) {
                 await supabaseSedes.from('paciente_perfil')
                     .update({ email: email })
                     .eq('paciente_id', profile.id);
