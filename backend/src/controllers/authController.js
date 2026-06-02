@@ -211,6 +211,30 @@ const googleLogin = async (req, res) => {
             };
         }
 
+        // Asegurarse de que el paciente tenga el registro de perfil extendido y el email esté guardado
+        if (profile.tipo_usuario === 'paciente') {
+            const { data: perfil } = await supabaseSedes
+                .from('paciente_perfil')
+                .select('email')
+                .eq('paciente_id', profile.id)
+                .maybeSingle();
+
+            if (!perfil) {
+                // Crear si no existe
+                await supabaseSedes.from('paciente_perfil').insert([{
+                    paciente_id: profile.id,
+                    genero: null,
+                    fecha_nacimiento: null,
+                    email: email,
+                }]);
+            } else if (!perfil.email && email) {
+                // Si existe pero no tiene email, guardar el de Google
+                await supabaseSedes.from('paciente_perfil')
+                    .update({ email: email })
+                    .eq('paciente_id', profile.id);
+            }
+        }
+
         // 3. Generar nuestro token JWT
         const token = jwt.sign(
             { id: profile.id, tipo_usuario: profile.tipo_usuario },
