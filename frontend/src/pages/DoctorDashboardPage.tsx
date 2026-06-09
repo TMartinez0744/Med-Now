@@ -7,6 +7,7 @@ import clockIcon from "../assets/access_time.svg";
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+import { formatDoctorName, stripDoctorPrefix } from "../lib/doctorName";
 import FichaPaciente from "../components/FichaPaciente";
 
 const DIAS = [
@@ -76,40 +77,39 @@ function DoctorDashboardPage() {
     const doctorData = JSON.parse(localStorage.getItem("doctorData") || "{}");
     const medicoId: string = doctorData.id ?? "";
 
-    const buildDoctorName = (raw: string) =>
-        raw
-            ? raw.match(/^Dr[a]?\./i) ? raw : `Dr. ${raw}`
-            : doctorData.licenseNumber
-            ? `Dr. Matrícula ${doctorData.licenseNumber}`
-            : "Dr. Usuario";
-
-    const [displayName, setDisplayName] = useState(buildDoctorName(doctorData.nombre_apellido ?? ""));
+    const [displayName, setDisplayName] = useState(formatDoctorName(doctorData.nombre_apellido, doctorData.licenseNumber));
     const [showEditProfileModal, setShowEditProfileModal] = useState(false);
-    
+
+    // Valores reales del DB (cargados por el useEffect) — fuente de verdad para el modal de edición
+    const [dbName, setDbName] = useState(stripDoctorPrefix(doctorData.nombre_apellido));
+    const [dbDni, setDbDni] = useState<string>(doctorData.licenseNumber ?? "");
+
     const [draftName, setDraftName] = useState("");
     const [draftLastName, setDraftLastName] = useState("");
     const [draftDni, setDraftDni] = useState(doctorData.licenseNumber ?? "");
     const [draftEmail, setDraftEmail] = useState("");
-    
+
     const [savingName, setSavingName] = useState(false);
     const [email, setEmail] = useState("");
 
     const openEditProfile = () => {
-        const nameParts = (doctorData.nombre_apellido ?? "").trim().split(/\s+/);
+        const nameParts = dbName.split(/\s+/).filter(Boolean);
         setDraftName(nameParts[0] || "");
         setDraftLastName(nameParts.slice(1).join(" ") || "");
-        setDraftDni(doctorData.licenseNumber ?? "");
+        setDraftDni(dbDni);
         setDraftEmail(email);
         setShowEditProfileModal(true);
     };
 
     const saveProfile = async () => {
-        if (!draftName.trim()) { showToast("El nombre no puede estar vacío"); return; }
+        const cleanName = stripDoctorPrefix(draftName);
+        const cleanLast = stripDoctorPrefix(draftLastName);
+        if (!cleanName) { showToast("El nombre no puede estar vacío"); return; }
         if (draftEmail.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draftEmail.trim())) {
             showToast("El email no tiene un formato válido"); return;
         }
         setSavingName(true);
-        const nombreCompleto = `${draftName.trim()} ${draftLastName.trim()}`.trim();
+        const nombreCompleto = `${cleanName} ${cleanLast}`.trim();
         try {
             const [resProfile, resMedico] = await Promise.all([
                 apiFetch(`/api/profiles/${medicoId}`, {
@@ -122,21 +122,27 @@ function DoctorDashboardPage() {
                     body: JSON.stringify({ email: draftEmail.trim() || null }),
                 }),
             ]);
-            
+
+            const profileJson = await resProfile.json().catch(() => ({}));
+            const medicoJson = await resMedico.json().catch(() => ({}));
+
             if (resProfile.ok && resMedico.ok) {
-                const updated = { 
-                    ...doctorData, 
-                    nombre_apellido: nombreCompleto, 
-                    licenseNumber: draftDni.trim() 
+                const updated = {
+                    ...doctorData,
+                    nombre_apellido: nombreCompleto,
+                    licenseNumber: draftDni.trim()
                 };
                 localStorage.setItem("doctorData", JSON.stringify(updated));
                 localStorage.setItem("user", draftDni.trim());
-                setDisplayName(buildDoctorName(nombreCompleto));
+                setDisplayName(formatDoctorName(nombreCompleto, draftDni.trim()));
+                setDbName(nombreCompleto);
+                setDbDni(draftDni.trim());
                 setEmail(draftEmail.trim());
                 setShowEditProfileModal(false);
                 showToast("Perfil actualizado", "success");
             } else {
-                showToast("No se pudieron guardar los cambios. Intentá de nuevo.");
+                const msg = profileJson?.message || medicoJson?.message || "No se pudieron guardar los cambios. Intentá de nuevo.";
+                showToast(msg);
             }
         } catch (error) {
             console.error(error);
@@ -145,8 +151,8 @@ function DoctorDashboardPage() {
         setSavingName(false);
     };
 
-    const doctorLicense = doctorData.licenseNumber
-        ? `Matrícula: ${doctorData.licenseNumber}`
+    const doctorLicense = dbDni
+        ? `Matrícula: ${dbDni}`
         : "Matrícula: No disponible";
 
     const [specialties, setSpecialties] = useState<string[]>(
@@ -167,10 +173,21 @@ function DoctorDashboardPage() {
                     setEmail(data.email ?? "");
                     setDraftEmail(data.email ?? "");
                     if (data.profiles) {
-                        const nameParts = (data.profiles.nombre_apellido ?? "").trim().split(/\s+/);
+                        const cleanName = stripDoctorPrefix(data.profiles.nombre_apellido);
+                        const realDni = data.profiles.dni ?? "";
+                        setDbName(cleanName);
+                        setDbDni(realDni);
+                        const nameParts = cleanName.split(/\s+/).filter(Boolean);
                         setDraftName(nameParts[0] || "");
                         setDraftLastName(nameParts.slice(1).join(" ") || "");
-                        setDraftDni(data.profiles.dni ?? "");
+                        setDraftDni(realDni);
+
+                        // Sincronizar localStorage con el DNI real del DB si difiere
+                        if (realDni && realDni !== doctorData.licenseNumber) {
+                            const updated = { ...doctorData, licenseNumber: realDni, nombre_apellido: data.profiles.nombre_apellido };
+                            localStorage.setItem("doctorData", JSON.stringify(updated));
+                            localStorage.setItem("user", realDni);
+                        }
                     }
                 }
             })
@@ -1089,7 +1106,7 @@ function DoctorDashboardPage() {
                 <FichaPaciente
                     pacienteId={fichaAbierta.id}
                     medicoId={medicoId}
-                    nombreMedico={doctorData.nombre_apellido ?? "Médico"}
+                    nombreMedico={formatDoctorName(doctorData.nombre_apellido, doctorData.licenseNumber)}
                     matriculaMedico={doctorData.licenseNumber ?? undefined}
                     nombrePaciente={fichaAbierta.nombre}
                     onClose={() => setFichaAbierta(null)}

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import Navbar from "../components/Navbar";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+import { formatDoctorName } from "../lib/doctorName";
 
 const DIAS_SEMANA = [
     { label: "Dom", index: 0 },
@@ -403,7 +404,7 @@ function TurnosPage() {
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", marginBottom: 3 }}>
-                                                {t.medicos?.profiles?.nombre_apellido ?? "Médico"}
+                                                {formatDoctorName(t.medicos?.profiles?.nombre_apellido)}
                                             </div>
                                             <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
                                                 {t.medicos?.especialidades?.[0] ?? ""}
@@ -462,7 +463,7 @@ function TurnosPage() {
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                         <div style={{ flex: 1 }}>
                                             <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", marginBottom: 3 }}>
-                                                {t.medicos?.profiles?.nombre_apellido ?? "Médico"}
+                                                {formatDoctorName(t.medicos?.profiles?.nombre_apellido)}
                                             </div>
                                             <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
                                                 {t.medicos?.especialidades?.[0] ?? ""}
@@ -591,7 +592,7 @@ function TurnosPage() {
                             <div key={medico.id} className="dashboard-card">
                                 <div style={{ marginBottom: 12 }}>
                                     <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "#111827" }}>
-                                        {medico.nombre_apellido}
+                                        {formatDoctorName(medico.nombre_apellido)}
                                     </p>
                                     {medico.sedes.length > 0 && (
                                         <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
@@ -709,7 +710,7 @@ function TurnosPage() {
                                     ¡Turno reservado!
                                 </h3>
                                 <p style={{ margin: "0 0 6px", color: "#374151" }}>
-                                    {reserva.medico.nombre_apellido}
+                                    {formatDoctorName(reserva.medico.nombre_apellido)}
                                 </p>
                                 <p style={{ margin: "0 0 24px", color: "#6b7280", fontSize: 14 }}>
                                     {fechaSeleccionada && formatFecha(fechaSeleccionada)} —{" "}
@@ -739,7 +740,7 @@ function TurnosPage() {
                                 {/* Info del médico */}
                                 <div style={{ background: "#f0f4ff", borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
                                     <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                        {reserva.medico.nombre_apellido}
+                                        {formatDoctorName(reserva.medico.nombre_apellido)}
                                     </p>
                                     <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
                                         {DIA_NOMBRE[reserva.dia_semana]}

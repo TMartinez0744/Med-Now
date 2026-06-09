@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+import { formatDoctorName } from "../lib/doctorName";
 
 interface ProfileInfo {
     nombre_apellido: string;
@@ -107,7 +108,7 @@ function FichaHistorialModal({ pacienteId, onClose, currentUserId }: Props) {
         if (item.profiles) {
             const esMedico = item.profiles.tipo_usuario === "medico";
             if (esMedico) {
-                autor = `Dr. ${item.profiles.nombre_apellido}`;
+                autor = formatDoctorName(item.profiles.nombre_apellido);
             } else {
                 autor = item.profiles.nombre_apellido;
             }

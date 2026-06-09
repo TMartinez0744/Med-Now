@@ -104,6 +104,46 @@ async function sendNewTurnoEmail(doctorEmail, doctorName, patientName, fechaHora
 }
 
 /**
+ * Confirmación al paciente sobre un nuevo turno reservado
+ */
+async function sendNewTurnoPatientEmail(patientEmail, patientName, doctorName, fechaHora, sede) {
+    const formattedDate = new Date(fechaHora).toLocaleDateString("es-AR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric"
+    });
+    const formattedTime = new Date(fechaHora).toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit"
+    }) + " hs";
+
+    const subject = "✅ MedNow: Turno reservado con éxito";
+    const text = `Hola ${patientName},\n\nTu turno con el/la Dr/a. ${doctorName} quedó reservado para el día ${formattedDate} a las ${formattedTime}${sede ? `, en ${sede}` : ""}.\n\nSaludos,\nEl equipo de MedNow`;
+    const html = `
+        <div style="font-family: Arial, sans-serif; padding: 24px; color: #111827; max-width: 600px; margin: 0 auto; border: 1px solid #f3f4f6; border-radius: 16px;">
+            <div style="text-align: center; margin-bottom: 24px;">
+                <div style="display: inline-block; background: #10b981; color: white; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; font-weight: 700; line-height: 40px; text-align: center;">✓</div>
+                <h1 style="font-size: 20px; color: #1e3a8a; margin: 8px 0 0;">MedNow</h1>
+            </div>
+            <p style="font-size: 16px; font-weight: bold; color: #374151;">Hola ${patientName},</p>
+            <p style="font-size: 15px; color: #4b5563; line-height: 1.5;">Tu turno fue reservado con éxito:</p>
+            <div style="background: #ecfdf5; border-radius: 12px; padding: 16px; margin: 20px 0; border-left: 4px solid #10b981;">
+                <p style="margin: 0 0 8px; font-size: 14px; color: #065f46;"><strong>Profesional:</strong> Dr/a. ${doctorName}</p>
+                <p style="margin: 0 0 8px; font-size: 14px; color: #065f46;"><strong>Fecha:</strong> ${formattedDate}</p>
+                <p style="margin: 0 0 8px; font-size: 14px; color: #065f46;"><strong>Hora:</strong> ${formattedTime}</p>
+                ${sede ? `<p style="margin: 0; font-size: 14px; color: #065f46;"><strong>Sede:</strong> ${sede}</p>` : ""}
+            </div>
+            <p style="font-size: 13px; color: #9ca3af; margin-top: 32px; border-top: 1px solid #e5e7eb; padding-top: 16px; text-align: center;">
+                Te vamos a enviar un recordatorio 24 horas antes. Si necesitás cancelar podés hacerlo desde el portal de MedNow.
+            </p>
+        </div>
+    `;
+
+    return sendEmail({ to: patientEmail, subject, text, html });
+}
+
+/**
  * Recordatorio de turno (para médico y paciente) 24h antes
  */
 async function sendReminderEmail(email, name, partnerName, role, fechaHora) {
@@ -237,6 +277,7 @@ async function sendCancellationEmail(email, name, partnerName, role, fechaHora) 
 
 module.exports = {
     sendNewTurnoEmail,
+    sendNewTurnoPatientEmail,
     sendReminderEmail,
     sendCancellationEmail
 };

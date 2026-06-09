@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+import { formatDoctorName } from "../lib/doctorName";
 
 const DEFAULT_ASSISTANT_NAME = "AlivIA";
 const HISTORY_LIMIT = 20;
@@ -21,6 +22,23 @@ type ChatHistoryItem = {
 };
 
 type View = "intro" | "chat" | "viewing";
+
+type DoctorRoom = {
+    id: string;
+    medico_id: string;
+    tipo: string | null;
+    updated_at: string;
+    destinatario: { id: string; nombre_apellido: string; tipo_usuario: string } | null;
+    resumen_derivacion: string | null;
+};
+
+function formatRelativeTime(iso: string): string {
+    const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+    if (diff < 60) return `hace ${diff}s`;
+    if (diff < 3600) return `hace ${Math.floor(diff / 60)} min`;
+    if (diff < 86400) return `hace ${Math.floor(diff / 3600)} h`;
+    return new Date(iso).toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+}
 
 function buildWelcome(name: string): string {
     return `¡Hola! Soy ${name}, el asistente médico virtual de MedNow.\n\nEstoy acá para orientarte con consultas de salud, síntomas o información general. Tené en cuenta que no reemplazo a un médico: si tu caso amerita atención profesional te voy a sugerir sacar un turno.\n\n¿En qué te puedo ayudar hoy?`;
@@ -120,6 +138,8 @@ function PatientChatPage() {
     const [history, setHistory] = useState<ChatHistoryItem[]>(() => loadHistory(patientData.id));
     const [viewingChat, setViewingChat] = useState<ChatHistoryItem | null>(null);
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+    const [doctorRooms, setDoctorRooms] = useState<DoctorRoom[]>([]);
+    const [unreadByMedico, setUnreadByMedico] = useState<Record<string, number>>({});
 
     // Derivación a médico humano
     const [derivacionId, setDerivacionId] = useState<string | null>(null);
@@ -143,7 +163,7 @@ function PatientChatPage() {
                 if (!active || !json?.success) return;
                 const d = json.data;
                 if (d.estado === "aceptada" && d.room_id) {
-                    showToast(`${d.medico?.nombre_apellido ?? "Un médico"} se unió al chat`, "success");
+                    showToast(`${d.medico?.nombre_apellido ? formatDoctorName(d.medico.nombre_apellido) : "Un médico"} se unió al chat`, "success");
                     setDerivacionId(null);
                     setDerivacionStartedAt(null);
                     navigate(`/patient/chat/${d.room_id}`);
@@ -201,6 +221,30 @@ function PatientChatPage() {
         setDerivacionId(null);
         setDerivacionStartedAt(null);
     };
+
+    useEffect(() => {
+        let active = true;
+        const fetchRooms = async () => {
+            try {
+                const [resRooms, resUnread] = await Promise.all([
+                    apiFetch("/api/chats/rooms"),
+                    apiFetch("/api/chats/unread-by-counterparty"),
+                ]);
+                const [jr, ju] = await Promise.all([resRooms.json(), resUnread.json()]);
+                if (active && jr?.success) setDoctorRooms(jr.data ?? []);
+                if (active && ju?.success) setUnreadByMedico(ju.data ?? {});
+            } catch { /* silencioso */ }
+        };
+        fetchRooms();
+        const interval = window.setInterval(fetchRooms, 15000);
+        const onFocus = () => fetchRooms();
+        window.addEventListener("focus", onFocus);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+            window.removeEventListener("focus", onFocus);
+        };
+    }, []);
 
     useEffect(() => {
         let active = true;
@@ -339,8 +383,53 @@ function PatientChatPage() {
                         </button>
                     </div>
 
+                    {doctorRooms.length > 0 && (
+                        <div className="chat-history-section">
+                            <h3 className="chat-history-title">Mis chats con médicos</h3>
+                            <ul className="chat-history-list">
+                                {doctorRooms.map((r) => {
+                                    const unread = unreadByMedico[r.medico_id] ?? 0;
+                                    const nombre = r.destinatario?.nombre_apellido
+                                        ? formatDoctorName(r.destinatario.nombre_apellido)
+                                        : "Médico";
+                                    return (
+                                        <li
+                                            key={r.id}
+                                            className="chat-history-item"
+                                            onClick={() => navigate(`/patient/chat/${r.id}`)}
+                                        >
+                                            <div className="chat-history-item-icon" style={{ background: "#dbeafe" }}>
+                                                <span style={{ fontWeight: 700, fontSize: 13, color: "#1d4ed8" }}>
+                                                    {getInitials(r.destinatario?.nombre_apellido ?? "M")}
+                                                </span>
+                                            </div>
+                                            <div className="chat-history-item-body">
+                                                <p className="chat-history-item-title">{nombre}</p>
+                                                <p className="chat-history-item-meta">
+                                                    {r.tipo === "urgencia"
+                                                        ? `Urgencia · ${formatRelativeTime(r.updated_at)}`
+                                                        : `Chat por turno · ${formatRelativeTime(r.updated_at)}`}
+                                                </p>
+                                            </div>
+                                            {unread > 0 && (
+                                                <span style={{
+                                                    background: "#ef4444", color: "white",
+                                                    fontSize: 11, fontWeight: 700,
+                                                    padding: "2px 7px", borderRadius: 999,
+                                                    minWidth: 20, textAlign: "center",
+                                                }}>
+                                                    {unread}
+                                                </span>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </div>
+                    )}
+
                     <div className="chat-history-section">
-                        <h3 className="chat-history-title">Historial de chats</h3>
+                        <h3 className="chat-history-title">Historial con AlivIA</h3>
                         {history.length === 0 ? (
                             <p className="chat-history-empty">Todavía no tenés conversaciones guardadas.</p>
                         ) : (

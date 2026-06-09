@@ -3,7 +3,9 @@ import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../lib/api";
 import { supabase } from "../lib/supabase";
 import { showToast } from "../lib/toast";
+import { formatDoctorName } from "../lib/doctorName";
 import Navbar from "../components/Navbar";
+import FichaPaciente from "../components/FichaPaciente";
 
 type Message = {
     id: string;
@@ -39,10 +41,14 @@ function ChatRoomPage({ role }: ChatRoomProps) {
         }
     }, [role]);
     const activeUserId: string = activeUser.id ?? "";
-    const activeUserName: string = activeUser.nombre_apellido ?? "Vos";
+    const activeUserName: string = role === "doctor"
+        ? formatDoctorName(activeUser.nombre_apellido, activeUser.licenseNumber)
+        : (activeUser.nombre_apellido ?? "Vos");
 
     const [messages, setMessages] = useState<Message[]>([]);
     const [destinatarioName, setDestinatarioName] = useState<string>("Cargando...");
+    const [destinatarioId, setDestinatarioId] = useState<string | null>(null);
+    const [fichaAbierta, setFichaAbierta] = useState(false);
     const [input, setInput] = useState("");
     const [sending, setSending] = useState(false);
     const [fetchingMessages, setFetchingMessages] = useState(true);
@@ -69,7 +75,9 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                 if (active && dataRooms.success) {
                     const currentRoom = (dataRooms.data ?? []).find((r: any) => r.id === roomId);
                     if (currentRoom?.destinatario) {
-                        setDestinatarioName(currentRoom.destinatario.nombre_apellido);
+                        const nombre = currentRoom.destinatario.nombre_apellido;
+                        setDestinatarioName(role === "patient" ? formatDoctorName(nombre) : nombre);
+                        setDestinatarioId(currentRoom.destinatario.id);
                     } else {
                         setDestinatarioName(role === "patient" ? "Médico" : "Paciente");
                     }
@@ -260,11 +268,33 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                     </p>
                 </div>
 
+                {role === "doctor" && destinatarioId && (
+                    <button
+                        onClick={() => setFichaAbierta(true)}
+                        title="Ver ficha médica del paciente"
+                        style={{
+                            marginLeft: "auto",
+                            background: "rgba(255,255,255,0.15)",
+                            border: "1px solid rgba(255,255,255,0.3)",
+                            color: "white",
+                            padding: "6px 12px",
+                            borderRadius: 10,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 5,
+                        }}
+                    >
+                        📋 Ficha
+                    </button>
+                )}
                 <button
                     className="chat-header-finish"
                     onClick={() => setShowConfirmClose(true)}
                     title="Finalizar conversación"
-                    style={{ marginLeft: "auto" }}
+                    style={role === "doctor" && destinatarioId ? {} : { marginLeft: "auto" }}
                 >
                     Finalizar
                 </button>
@@ -394,6 +424,17 @@ function ChatRoomPage({ role }: ChatRoomProps) {
             </div>
 
             <Navbar role={role} />
+
+            {role === "doctor" && fichaAbierta && destinatarioId && (
+                <FichaPaciente
+                    pacienteId={destinatarioId}
+                    medicoId={activeUserId}
+                    nombreMedico={formatDoctorName(activeUser.nombre_apellido, activeUser.licenseNumber)}
+                    matriculaMedico={activeUser.licenseNumber ?? undefined}
+                    nombrePaciente={destinatarioName}
+                    onClose={() => setFichaAbierta(false)}
+                />
+            )}
 
             {showConfirmClose && (
                 <div className="chat-confirm-overlay" onClick={() => setShowConfirmClose(false)}>

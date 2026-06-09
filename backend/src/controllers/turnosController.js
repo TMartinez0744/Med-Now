@@ -17,26 +17,36 @@ class TurnosController {
             const turno = await turnosService.create({ paciente_id, medico_id, fecha_hora, notas_triage });
             res.status(201).json({ success: true, data: turno });
 
-            // Enviar notificación de nuevo turno por email al médico en segundo plano
+            // Enviar notificación de nuevo turno por email (médico + paciente) en segundo plano
             (async () => {
                 try {
                     const supabase = require('../config/supabase');
-                    const { sendNewTurnoEmail } = require('../services/emailService');
+                    const supabaseSedes = require('../config/supabaseSedes');
+                    const { sendNewTurnoEmail, sendNewTurnoPatientEmail } = require('../services/emailService');
 
-                    const [{ data: patientProfile }, { data: doctorInfo }] = await Promise.all([
+                    const [{ data: patientProfile }, { data: doctorInfo }, { data: patientPerfil }] = await Promise.all([
                         supabase.from('profiles').select('nombre_apellido').eq('id', paciente_id).single(),
-                        supabase.from('medicos').select('email, profiles (nombre_apellido)').eq('id', medico_id).single()
+                        supabase.from('medicos').select('email, profiles (nombre_apellido)').eq('id', medico_id).single(),
+                        supabaseSedes.from('paciente_perfil').select('email').eq('paciente_id', paciente_id).maybeSingle()
                     ]);
 
                     const doctorEmail = doctorInfo?.email;
                     const doctorName = doctorInfo?.profiles?.nombre_apellido || "Médico";
                     const patientName = patientProfile?.nombre_apellido || "Paciente";
+                    const patientEmail = patientPerfil?.email;
 
+                    const promises = [];
                     if (doctorEmail) {
-                        await sendNewTurnoEmail(doctorEmail, doctorName, patientName, fecha_hora);
+                        promises.push(sendNewTurnoEmail(doctorEmail, doctorName, patientName, fecha_hora));
                     } else {
                         console.warn(`⚠️ [Notificación] El médico ${doctorName} no tiene correo registrado.`);
                     }
+                    if (patientEmail) {
+                        promises.push(sendNewTurnoPatientEmail(patientEmail, patientName, doctorName, fecha_hora, turno?.sede));
+                    } else {
+                        console.warn(`⚠️ [Notificación] El paciente ${patientName} no tiene correo registrado.`);
+                    }
+                    await Promise.all(promises);
                 } catch (err) {
                     console.error("❌ [Notificación] Error al enviar email de nuevo turno:", err);
                 }

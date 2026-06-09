@@ -47,14 +47,15 @@ function DoctorLoginPage() {
             // Limpiar sesión previa de paciente
             localStorage.removeItem("patientData");
 
-            // Guardar token y datos del médico
+            // Guardar token y datos del médico (usamos el DNI real del DB, no el armado del form)
+            const realDni = result.user.dni ?? fullLicense;
             localStorage.setItem("token", result.token);
-            localStorage.setItem("user", fullLicense);
+            localStorage.setItem("user", realDni);
             localStorage.setItem(
                 "doctorData",
                 JSON.stringify({
                     id: result.user.id,
-                    licenseNumber: fullLicense,
+                    licenseNumber: realDni,
                     nombre_apellido: result.user.nombre_apellido,
                     especialidades: result.user.medico?.especialidades ?? [],
                     sedes: result.user.medico?.sedes ?? [],

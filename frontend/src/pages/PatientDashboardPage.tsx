@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
+import { formatDoctorName } from "../lib/doctorName";
 import FichaHistorialModal from "../components/FichaHistorialModal";
 
 
@@ -412,7 +413,7 @@ function PatientDashboardPage() {
                         }}>
                             <div>
                                 <p style={{ margin: "0 0 3px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
-                                    {proximoTurno.medicos?.profiles?.nombre_apellido ?? "Médico"}
+                                    {formatDoctorName(proximoTurno.medicos?.profiles?.nombre_apellido)}
                                 </p>
                                 {proximoTurno.medicos?.especialidades?.[0] && (
                                     <p style={{ margin: "0 0 4px", fontSize: 13, color: "#6b7280" }}>
