@@ -8,6 +8,7 @@ import DoctorRegisterPage from "./pages/DoctorRegisterPage";
 import PatientDashboardPage from "./pages/PatientDashboardPage";
 import DoctorDashboardPage from "./pages/DoctorDashboardPage";
 import TurnosPage from "./pages/TurnosPage";
+import DoctorTurnosPage from "./pages/DoctorTurnosPage";
 import PatientChatPage from "./pages/PatientChatPage";
 import DoctorChatPage from "./pages/DoctorChatPage";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -51,6 +52,15 @@ function App() {
                     element={
                         <ProtectedRoute role="patient">
                             <TurnosPage />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/doctor/turnos"
+                    element={
+                        <ProtectedRoute role="doctor">
+                            <DoctorTurnosPage />
                         </ProtectedRoute>
                     }
                 />

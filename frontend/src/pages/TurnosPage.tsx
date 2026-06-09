@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
@@ -112,6 +113,7 @@ function formatFechaHora(iso: string) {
 }
 
 function TurnosPage() {
+    const navigate = useNavigate();
     const patientData = JSON.parse(localStorage.getItem("patientData") || "{}");
     const pacienteId: string = patientData.id ?? "";
 
@@ -186,6 +188,47 @@ function TurnosPage() {
             console.error("Error cargando turnos del paciente", e);
         } finally {
             setLoadingTurnos(false);
+        }
+    };
+
+    // Mensajes sin leer por médico (para el punto naranja en "Chatear")
+    const [unreadByMedico, setUnreadByMedico] = useState<Record<string, number>>({});
+    useEffect(() => {
+        if (!pacienteId) return;
+        let active = true;
+        const fetchUnread = async () => {
+            try {
+                const res = await apiFetch("/api/chats/unread-by-counterparty");
+                if (!res.ok) return;
+                const json = await res.json();
+                if (active && json?.success) setUnreadByMedico(json.data ?? {});
+            } catch { /* silencioso */ }
+        };
+        fetchUnread();
+        const interval = window.setInterval(fetchUnread, 15000);
+        const onFocus = () => fetchUnread();
+        window.addEventListener("focus", onFocus);
+        return () => {
+            active = false;
+            window.clearInterval(interval);
+            window.removeEventListener("focus", onFocus);
+        };
+    }, [pacienteId]);
+
+    const handleStartChat = async (medicoId: string) => {
+        try {
+            const res = await apiFetch("/api/chats/room", {
+                method: "POST",
+                body: JSON.stringify({ paciente_id: pacienteId, medico_id: medicoId }),
+            });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                navigate(`/patient/chat/${data.data.id}`);
+            } else {
+                showToast(data.message ?? "Error al abrir la sala de chat.");
+            }
+        } catch {
+            showToast("Error al conectar con el servidor.");
         }
     };
 
@@ -428,14 +471,25 @@ function TurnosPage() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <button
-                                            onClick={() => cancelarTurno(t.id)}
-                                            disabled={cancelandoId === t.id}
-                                            className="cancel-turno-btn"
-                                            style={{ opacity: cancelandoId === t.id ? 0.5 : 1, cursor: cancelandoId === t.id ? "not-allowed" : "pointer" }}
-                                        >
-                                            {cancelandoId === t.id ? "..." : "Cancelar"}
-                                        </button>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                                            <button
+                                                onClick={() => handleStartChat(t.medico_id)}
+                                                className="chatear-btn"
+                                            >
+                                                Chatear
+                                                {(unreadByMedico[t.medico_id] ?? 0) > 0 && (
+                                                    <span className="chatear-btn-dot" />
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => cancelarTurno(t.id)}
+                                                disabled={cancelandoId === t.id}
+                                                className="cancel-turno-btn"
+                                                style={{ opacity: cancelandoId === t.id ? 0.5 : 1, cursor: cancelandoId === t.id ? "not-allowed" : "pointer" }}
+                                            >
+                                                {cancelandoId === t.id ? "..." : "Cancelar"}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );

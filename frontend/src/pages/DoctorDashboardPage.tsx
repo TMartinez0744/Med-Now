@@ -667,14 +667,9 @@ function DoctorDashboardPage() {
                                     }}
                                 >
                                     <div style={{ flex: 1 }}>
-                                        <button
-                                            onClick={() => setFichaAbierta({ id: turno.paciente_id, nombre: nombrePaciente })}
-                                            style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", width: "100%" }}
-                                        >
-                                            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#2f5cf5", textDecoration: "underline dotted" }}>
-                                                {nombrePaciente}
-                                            </p>
-                                        </button>
+                                        <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 15, color: "#111827" }}>
+                                            {nombrePaciente}
+                                        </p>
                                         <p style={{ margin: 0, fontSize: 13, color: "#374151" }}>
                                             📅 {fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
                                             {" "}🕐 {fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} hs
@@ -689,38 +684,61 @@ function DoctorDashboardPage() {
                                             {turno.estado}
                                         </span>
                                     </div>
-                                    <div style={{ display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
                                         <button
-                                            onClick={() => handleStartChat(turno.paciente_id)}
-                                            className="chatear-btn"
+                                            onClick={() => setFichaAbierta({ id: turno.paciente_id, nombre: nombrePaciente })}
+                                            className="ficha-square-btn"
+                                            title="Ver ficha del paciente"
                                         >
-                                            Chatear
-                                            {(unreadByPaciente[turno.paciente_id] ?? 0) > 0 && (
-                                                <span className="chatear-btn-dot" />
-                                            )}
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                <polyline points="14 2 14 8 20 8" />
+                                                <line x1="12" y1="18" x2="12" y2="12" />
+                                                <line x1="9" y1="15" x2="15" y2="15" />
+                                            </svg>
                                         </button>
-                                        <button
-                                            onClick={() => cancelarTurno(turno.id)}
-                                            disabled={isCanceling}
-                                            style={{
-                                                padding: "7px 13px",
-                                                borderRadius: 10,
-                                                border: "1px solid #fecaca",
-                                                background: "#fff5f5",
-                                                color: "#dc2626",
-                                                fontSize: 13,
-                                                fontWeight: 600,
-                                                cursor: isCanceling ? "not-allowed" : "pointer",
-                                                opacity: isCanceling ? 0.5 : 1,
-                                            }}
-                                        >
-                                            {isCanceling ? "..." : "Cancelar"}
-                                        </button>
+                                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                            <button
+                                                onClick={() => handleStartChat(turno.paciente_id)}
+                                                className="chatear-btn"
+                                            >
+                                                Chatear
+                                                {(unreadByPaciente[turno.paciente_id] ?? 0) > 0 && (
+                                                    <span className="chatear-btn-dot" />
+                                                )}
+                                            </button>
+                                            <button
+                                                onClick={() => cancelarTurno(turno.id)}
+                                                disabled={isCanceling}
+                                                style={{
+                                                    padding: "7px 13px",
+                                                    borderRadius: 10,
+                                                    border: "1px solid #fecaca",
+                                                    background: "#fff5f5",
+                                                    color: "#dc2626",
+                                                    fontSize: 13,
+                                                    fontWeight: 600,
+                                                    cursor: isCanceling ? "not-allowed" : "pointer",
+                                                    opacity: isCanceling ? 0.5 : 1,
+                                                }}
+                                            >
+                                                {isCanceling ? "..." : "Cancelar"}
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );
                         })}
                     </div>
+                )}
+
+                {!loadingTurnos && turnos.length > 0 && (
+                    <a
+                        href="/doctor/turnos"
+                        style={{ display: "block", textAlign: "right", marginTop: 12, color: "#2f5cf5", fontWeight: 600, fontSize: 14, textDecoration: "none" }}
+                    >
+                        Ver todos mis turnos →
+                    </a>
                 )}
             </div>
 

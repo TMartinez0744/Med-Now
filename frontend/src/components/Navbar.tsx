@@ -9,16 +9,12 @@ function Navbar({ role }: NavbarProps) {
 
     return (
         <nav className="navbar">
-            {role === "patient" ? (
-                <NavLink
-                    to="/patient/turnos"
-                    className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
-                >
-                    Turnos
-                </NavLink>
-            ) : (
-                <span className="nav-item disabled">Turnos</span>
-            )}
+            <NavLink
+                to={role === "patient" ? "/patient/turnos" : "/doctor/turnos"}
+                className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
+            >
+                Turnos
+            </NavLink>
             <NavLink
                 to="/mapa-emergencias"
                 className={({ isActive }) => `nav-item ${isActive ? "active" : ""}`}
