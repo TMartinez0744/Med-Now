@@ -4,10 +4,12 @@ const { sendReminderEmail } = require('../services/emailService');
 
 async function sendReminderCron() {
     console.log("⏰ [Cron] Ejecutando control periódico de recordatorios de turnos (24h antes)...");
-    
-    // Rango: entre 23 y 25 horas en el futuro
-    const minTime = new Date(Date.now() + 23 * 60 * 60 * 1000).toISOString();
-    const maxTime = new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString();
+
+    // Se recuerda el turno cuando faltan 24 hs o menos: desde ahora hasta ahora + 24 hs.
+    // Así, un turno a 24h+2min recibe el recordatorio ~2 min después de reservarlo
+    // (cuando entra en la ventana de las 24 hs).
+    const minTime = new Date().toISOString();
+    const maxTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     try {
         const { data: turnos, error } = await supabase
@@ -46,7 +48,7 @@ async function sendReminderCron() {
         for (const t of turnos) {
             const patientName = t.pacientes?.profiles?.nombre_apellido || "Paciente";
             const patientEmail = t.pacientes?.paciente_perfil?.email;
-            
+
             const doctorName = t.medicos?.profiles?.nombre_apellido || "Médico";
             const doctorEmail = t.medicos?.email;
 

@@ -55,8 +55,9 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor corriendo en http://localhost:${PORT}`);
     
-    // Iniciar el emulador de tareas cron en segundo plano para recordatorios de turnos
+    // Iniciar el emulador de tareas cron en segundo plano para recordatorios de turnos.
+    // Corre cada 1 minuto para que el recordatorio (24h antes) llegue puntual.
     const { sendReminderCron } = require("./cron/turnoReminderCron");
-    setInterval(sendReminderCron, 60 * 60 * 1000); // Cada 1 hora
+    setInterval(sendReminderCron, 60 * 1000); // Cada 1 minuto
     setTimeout(sendReminderCron, 10000); // Inicialización de cortesía a los 10 segundos
 });
