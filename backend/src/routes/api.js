@@ -683,4 +683,45 @@ async function syncMedicoCompleteness(medicoId) {
     }
 }
 
+// POST /api/upload -> Subir imagen a Supabase Storage pasando a través del Backend
+router.post('/upload', async (req, res) => {
+    const { file, filename, mimeType } = req.body;
+    if (!file) {
+        return res.status(400).json({ success: false, message: "No se proporcionó ningún archivo." });
+    }
+    if (!filename) {
+        return res.status(400).json({ success: false, message: "No se proporcionó el nombre del archivo." });
+    }
+
+    try {
+        let base64Data = file;
+        if (base64Data.includes(';base64,')) {
+            base64Data = base64Data.split(';base64,')[1];
+        }
+        const buffer = Buffer.from(base64Data, 'base64');
+
+        const { data, error } = await supabase.storage
+            .from('chat-images')
+            .upload(filename, buffer, {
+                contentType: mimeType || 'image/jpeg',
+                upsert: true
+            });
+
+        if (error) {
+            console.error("Error al subir archivo a Supabase Storage:", error);
+            return res.status(500).json({ success: false, message: "Error al subir archivo al almacenamiento de Supabase." });
+        }
+
+        const { data: publicUrlData } = supabase.storage
+            .from('chat-images')
+            .getPublicUrl(filename);
+
+        res.json({ success: true, publicUrl: publicUrlData.publicUrl });
+    } catch (err) {
+        console.error("Error en /api/upload:", err);
+        res.status(500).json({ success: false, message: "Error interno en el servidor al subir la imagen." });
+    }
+});
+
 module.exports = router;
+

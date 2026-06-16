@@ -250,7 +250,7 @@ class ChatRoomController {
             return res.status(400).json({ success: false, message: 'El contenido del mensaje no puede estar vacío.' });
         }
 
-        const tipoValido = ['texto', 'sistema', 'contexto'].includes(tipo) ? tipo : 'texto';
+        const tipoValido = ['texto', 'sistema', 'contexto', 'imagen'].includes(tipo) ? tipo : 'texto';
 
         try {
             // 1. Verificar existencia de la sala y participación del usuario

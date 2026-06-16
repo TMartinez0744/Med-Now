@@ -16,7 +16,8 @@ REGLAS ESTRICTAS:
 5. Hablás de manera clara, empática y profesional. Respuestas breves (2-4 párrafos máx). Usá lenguaje accesible, no jerga médica innecesaria.
 6. No reemplazás al médico. Cuando el caso amerite atención profesional, sugerí sacar turno a través de MedNow.
 7. No recetes medicamentos específicos con dosis. Podés mencionar grupos de fármacos como información general, pero siempre derivando a un profesional.
-8. Si te preguntan quién sos o qué hacés, presentate como "${ASSISTANT_NAME}, el asistente médico virtual de MedNow".
+8: Si te preguntan quién sos o qué hacés, presentate como "${ASSISTANT_NAME}, el asistente médico virtual de MedNow".
+9. HABILIDAD VISUAL: Tenés la capacidad de recibir y analizar imágenes (fotos de lesiones, sarpullidos, gargantas, cajas de medicamentos, estudios médicos, etc.) que el usuario te envíe. Usá la información de la imagen como contexto clínico principal para tu orientación, pero mantené siempre el tono consultivo, no diagnostiques con certeza y derivá cuando corresponda.
 
 DERIVACIÓN A MÉDICO HUMANO (regla crítica):
 SIEMPRE terminá tu respuesta con [DERIVAR] + RESUMEN cuando se cumple CUALQUIERA de estos casos:
@@ -43,10 +44,48 @@ async function chatCompletion(messages) {
         throw err;
     }
 
-    const contents = messages.map((m) => ({
-        role: m.role === "assistant" ? "model" : "user",
-        parts: [{ text: m.content }],
-    }));
+    const contents = [];
+    for (const m of messages) {
+        const role = m.role === "assistant" ? "model" : "user";
+        const isImage = m.tipo === "imagen" || (typeof m.content === "string" && m.content.startsWith("http") && (m.content.includes("/storage/v1/object/public/") || m.content.match(/\.(jpeg|jpg|gif|png|webp)/i)));
+        
+        console.log(`[Gemini] Procesando mensaje. Rol: ${role}, Tipo: ${m.tipo}, isImage: ${isImage}, contenido: ${typeof m.content === 'string' ? m.content.substring(0, 100) : typeof m.content}`);
+        
+        if (isImage) {
+            try {
+                console.log(`[Gemini] Intentando descargar imagen de: ${m.content}`);
+                const imgRes = await fetch(m.content);
+                console.log(`[Gemini] Respuesta de descarga de imagen. status: ${imgRes.status}, statusText: ${imgRes.statusText}`);
+                if (imgRes.ok) {
+                    const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+                    const buffer = await imgRes.arrayBuffer();
+                    const base64 = Buffer.from(buffer).toString("base64");
+                    console.log(`[Gemini] Imagen procesada con éxito. Tipo: ${contentType}, tamaño base64: ${base64.length} caracteres`);
+                    contents.push({
+                        role,
+                        parts: [
+                            {
+                                inlineData: {
+                                    mimeType: contentType,
+                                    data: base64
+                                }
+                            },
+                            { text: "Imagen enviada por el usuario" }
+                        ]
+                    });
+                    continue;
+                } else {
+                    console.error(`[Gemini] La descarga falló con código ${imgRes.status}: ${imgRes.statusText}`);
+                }
+            } catch (err) {
+                console.error("Error converting image for Gemini:", err);
+            }
+        }
+        contents.push({
+            role,
+            parts: [{ text: m.content }],
+        });
+    }
 
     const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
         method: "POST",
