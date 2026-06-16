@@ -4,6 +4,7 @@ import Navbar from "../components/Navbar";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
 import { formatDoctorName } from "../lib/doctorName";
+import CalendarView from "../components/CalendarView";
 
 const DIAS_SEMANA = [
     { label: "Dom", index: 0 },
@@ -117,7 +118,7 @@ function TurnosPage() {
     const patientData = JSON.parse(localStorage.getItem("patientData") || "{}");
     const pacienteId: string = patientData.id ?? "";
 
-    const [activeTab, setActiveTab] = useState<"buscar" | "proximos" | "historial">("buscar");
+    const [activeTab, setActiveTab] = useState<"buscar" | "calendario" | "proximos" | "historial">("buscar");
 
     const [medicos, setMedicos] = useState<Medico[]>([]);
     const [loading, setLoading] = useState(true);
@@ -367,7 +368,7 @@ function TurnosPage() {
                 }),
             });
 
-            const result = await response.json();
+            await response.json();
 
             if (response.status === 409) {
                 // Turno ya reservado: marcamos esa fecha/hora como ocupada pero no cerramos el modal
@@ -404,6 +405,7 @@ function TurnosPage() {
                     <p className="dashboard-sub">
                         {activeTab === "buscar"
                             ? (loading ? "Cargando médicos..." : `${medicosFiltrados.length} médico${medicosFiltrados.length !== 1 ? "s" : ""} disponible${medicosFiltrados.length !== 1 ? "s" : ""}`)
+                            : activeTab === "calendario" ? "Visualizá tus turnos en el calendario"
                             : activeTab === "proximos" ? "Tus próximas citas"
                             : "Historial de turnos"}
                     </p>
@@ -412,16 +414,28 @@ function TurnosPage() {
 
             {/* Tabs */}
             <div className="turnos-tabs">
-                {(["buscar", "proximos", "historial"] as const).map((tab) => (
+                {(["buscar", "calendario", "proximos", "historial"] as const).map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`turnos-tab-btn ${activeTab === tab ? "active" : ""}`}
                     >
-                        {tab === "buscar" ? "Buscar" : tab === "proximos" ? "Próximos" : "Historial"}
+                        {tab === "buscar" ? "Buscar" : tab === "calendario" ? "Calendario" : tab === "proximos" ? "Próximos" : "Historial"}
                     </button>
                 ))}
             </div>
+
+            {/* Tab: Calendario */}
+            {activeTab === "calendario" && (
+                <CalendarView
+                    role="patient"
+                    turnos={historialTurnos}
+                    unreadMessages={unreadByMedico}
+                    onChat={handleStartChat}
+                    onCancel={cancelarTurno}
+                    onBuscarTurno={() => setActiveTab("buscar")}
+                />
+            )}
 
             {/* Tab: Próximos */}
             {activeTab === "proximos" && (

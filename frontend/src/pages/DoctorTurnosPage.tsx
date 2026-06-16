@@ -5,6 +5,7 @@ import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
 import { formatDoctorName } from "../lib/doctorName";
 import FichaPaciente from "../components/FichaPaciente";
+import CalendarView from "../components/CalendarView";
 
 type TurnoMedico = {
     id: string;
@@ -28,7 +29,7 @@ function DoctorTurnosPage() {
     const doctorData = JSON.parse(localStorage.getItem("doctorData") || "{}");
     const medicoId: string = doctorData.id ?? "";
 
-    const [activeTab, setActiveTab] = useState<"proximos" | "historial">("proximos");
+    const [activeTab, setActiveTab] = useState<"proximos" | "calendario" | "historial">("proximos");
     const [proximos, setProximos] = useState<TurnoMedico[]>([]);
     const [historial, setHistorial] = useState<TurnoMedico[]>([]);
     const [loading, setLoading] = useState(false);
@@ -128,23 +129,35 @@ function DoctorTurnosPage() {
                 <div>
                     <h2 className="dashboard-name">Mis Turnos</h2>
                     <p className="dashboard-sub">
-                        {activeTab === "proximos" ? "Próximas citas con tus pacientes" : "Historial de turnos"}
+                        {activeTab === "proximos" ? "Próximas citas con tus pacientes" : activeTab === "calendario" ? "Visualización en calendario" : "Historial de turnos"}
                     </p>
                 </div>
             </div>
 
             {/* Tabs */}
             <div className="turnos-tabs">
-                {(["proximos", "historial"] as const).map((tab) => (
+                {(["proximos", "calendario", "historial"] as const).map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={`turnos-tab-btn ${activeTab === tab ? "active" : ""}`}
                     >
-                        {tab === "proximos" ? "Próximos" : "Historial"}
+                        {tab === "proximos" ? "Próximos" : tab === "calendario" ? "Calendario" : "Historial"}
                     </button>
                 ))}
             </div>
+
+            {/* Tab: Calendario */}
+            {activeTab === "calendario" && (
+                <CalendarView
+                    role="doctor"
+                    turnos={[...proximos, ...historial]}
+                    unreadMessages={unreadByPaciente}
+                    onChat={handleStartChat}
+                    onCancel={(id) => setConfirmCancelId(id)}
+                    onFicha={(id, nombre) => setFichaAbierta({ id, nombre })}
+                />
+            )}
 
             {/* Tab: Próximos */}
             {activeTab === "proximos" && (

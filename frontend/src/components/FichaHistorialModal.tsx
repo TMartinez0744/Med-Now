@@ -36,7 +36,7 @@ interface HistorialItemDiff {
     };
 }
 
-function FichaHistorialModal({ pacienteId, onClose, currentUserId }: Props) {
+function FichaHistorialModal({ pacienteId, onClose }: Props) {
     const [historial, setHistorial] = useState<HistorialItem[]>([]);
     const [loading, setLoading] = useState(true);
 
