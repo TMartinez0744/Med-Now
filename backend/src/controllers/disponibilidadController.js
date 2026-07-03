@@ -25,6 +25,9 @@ class DisponibilidadController {
             const slot = await disponibilidadService.create(id, { dia_semana, hora_inicio, hora_fin, sede, duracion_turno });
             res.status(201).json({ success: true, data: slot });
         } catch (error) {
+            if (error.code === 'OVERLAP_DISPONIBILIDAD') {
+                return res.status(400).json({ success: false, message: error.message });
+            }
             console.error('Error en DisponibilidadController.create:', error);
             res.status(500).json({ success: false, message: 'Error interno del servidor' });
         }

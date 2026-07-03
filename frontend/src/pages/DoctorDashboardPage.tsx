@@ -4,7 +4,7 @@ import personIcon from "../assets/person.svg";
 import biotechIcon from "../assets/biotech.svg";
 import locationIcon from "../assets/location_on.svg";
 import clockIcon from "../assets/access_time.svg";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { apiFetch } from "../lib/api";
 import { showToast } from "../lib/toast";
 import { formatDoctorName, stripDoctorPrefix } from "../lib/doctorName";
@@ -92,6 +92,64 @@ function DoctorDashboardPage() {
     const [savingName, setSavingName] = useState(false);
     const [email, setEmail] = useState("");
 
+    // Avatar/Foto de perfil
+    const [fotoUrl, setFotoUrl] = useState<string>(doctorData.foto_url ?? "");
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !medicoId) return;
+        e.target.value = "";
+        setUploadingAvatar(true);
+        try {
+            const fileExt = file.name.split(".").pop();
+            const fileName = `avatar_${medicoId}_${Date.now()}.${fileExt}`;
+            const filePath = `avatars/${fileName}`;
+
+            // Comprimir la imagen
+            const base64File = await compressImage(file);
+
+            // Subir a través del backend
+            const uploadRes = await apiFetch("/api/upload", {
+                method: "POST",
+                body: JSON.stringify({
+                    file: base64File,
+                    filename: filePath,
+                    mimeType: "image/jpeg"
+                })
+            });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok || !uploadData.success) {
+                throw new Error(uploadData.message ?? "Error al subir la imagen");
+            }
+            const publicUrl = uploadData.publicUrl;
+
+            // Guardar en la base de datos del perfil
+            const profileRes = await apiFetch(`/api/profiles/${medicoId}`, {
+                method: "PATCH",
+                body: JSON.stringify({ foto_url: publicUrl })
+            });
+            const profileData = await profileRes.json();
+            if (!profileRes.ok || !profileData.success) {
+                throw new Error(profileData.message ?? "Error al guardar la foto de perfil");
+            }
+
+            setFotoUrl(publicUrl);
+            
+            // Actualizar localStorage
+            const currentDoctorData = JSON.parse(localStorage.getItem("doctorData") || "{}");
+            localStorage.setItem("doctorData", JSON.stringify({ ...currentDoctorData, foto_url: publicUrl }));
+            
+            showToast("Foto de perfil actualizada con éxito", "success");
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Error al subir la foto de perfil";
+            showToast(msg);
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
+
     const openEditProfile = () => {
         const nameParts = dbName.split(/\s+/).filter(Boolean);
         setDraftName(nameParts[0] || "");
@@ -175,18 +233,31 @@ function DoctorDashboardPage() {
                     if (data.profiles) {
                         const cleanName = stripDoctorPrefix(data.profiles.nombre_apellido);
                         const realDni = data.profiles.dni ?? "";
+                        const dbFoto = data.profiles.foto_url ?? "";
                         setDbName(cleanName);
                         setDbDni(realDni);
+                        setFotoUrl(dbFoto);
                         const nameParts = cleanName.split(/\s+/).filter(Boolean);
                         setDraftName(nameParts[0] || "");
                         setDraftLastName(nameParts.slice(1).join(" ") || "");
                         setDraftDni(realDni);
 
-                        // Sincronizar localStorage con el DNI real del DB si difiere
-                        if (realDni && realDni !== doctorData.licenseNumber) {
-                            const updated = { ...doctorData, licenseNumber: realDni, nombre_apellido: data.profiles.nombre_apellido };
-                            localStorage.setItem("doctorData", JSON.stringify(updated));
+                        // Sincronizar localStorage
+                        const currentDoctorData = JSON.parse(localStorage.getItem("doctorData") || "{}");
+                        let needsSync = false;
+                        const updated = { ...currentDoctorData };
+                        if (realDni && realDni !== currentDoctorData.licenseNumber) {
+                            updated.licenseNumber = realDni;
+                            updated.nombre_apellido = data.profiles.nombre_apellido;
                             localStorage.setItem("user", realDni);
+                            needsSync = true;
+                        }
+                        if (dbFoto !== (currentDoctorData.foto_url ?? "")) {
+                            updated.foto_url = dbFoto;
+                            needsSync = true;
+                        }
+                        if (needsSync) {
+                            localStorage.setItem("doctorData", JSON.stringify(updated));
                         }
                     }
                 }
@@ -280,7 +351,7 @@ function DoctorDashboardPage() {
             DIAS.map(({ nombre }) => [
                 nombre,
                 {
-                    enabled: !["Sábado", "Domingo"].includes(nombre),
+                    enabled: false,
                     intervals: [{ from: "08:00", to: "18:00", slotId: null }],
                 },
             ])
@@ -332,8 +403,7 @@ function DoctorDashboardPage() {
         });
     }, [hospitals]);
 
-    // Cargar disponibilidad desde la API al montar
-    useEffect(() => {
+    const fetchAvailability = () => {
         if (!medicoId) return;
 
         setLoadingSchedule(true);
@@ -341,7 +411,10 @@ function DoctorDashboardPage() {
             .then((r) => r.json())
             .then(({ data }: { data: SlotDB[] }) => {
                 console.log('[load disponibilidad]', data);
-                if (!data || data.length === 0) return;
+                if (!data || data.length === 0) {
+                    setSchedulesBySede({});
+                    return;
+                }
                 if (data[0]?.duracion_turno) setDuracionTurno(data[0].duracion_turno);
 
                 const bySedeDay: Record<string, Record<string, Interval[]>> = {};
@@ -372,6 +445,11 @@ function DoctorDashboardPage() {
             })
             .catch(console.error)
             .finally(() => setLoadingSchedule(false));
+    };
+
+    // Cargar disponibilidad desde la API al montar
+    useEffect(() => {
+        fetchAvailability();
     }, [medicoId]);
 
     const handleStartChat = async (pacienteId: string) => {
@@ -558,7 +636,7 @@ function DoctorDashboardPage() {
             );
 
             // 2. Crear slots de esta sede
-            const creates: Promise<{ success: boolean }>[] = [];
+            const creates: Promise<{ success: boolean; message?: string }>[] = [];
             DIAS.forEach(({ nombre, index }) => {
                 const day = currentSchedule[nombre];
                 if (!day?.enabled) return;
@@ -580,13 +658,13 @@ function DoctorDashboardPage() {
             });
 
             const results = await Promise.all(creates);
-            const hasError = results.some((r) => !r.success);
-            setScheduleMsg(
-                hasError
-                    ? "⚠️ Algunos horarios no se guardaron correctamente."
-                    : "✅ Horarios guardados correctamente."
-            );
-            setIsEditingSchedule(false);
+            const failedResult = results.find((r) => !r.success);
+            if (failedResult) {
+                setScheduleMsg(`⚠️ ${failedResult.message || "Algunos horarios no se guardaron correctamente."}`);
+            } else {
+                setScheduleMsg("✅ Horarios guardados correctamente.");
+                setIsEditingSchedule(false);
+            }
         } catch (err) {
             console.error(err);
             setScheduleMsg("❌ Error al guardar. Intentá nuevamente.");
@@ -598,8 +676,19 @@ function DoctorDashboardPage() {
     return (
         <div className="dashboard-container">
             <div className="dashboard-header">
-                <div className="avatar">
-                    <img src={personIcon} alt="Usuario" className="avatar-icon" />
+                <div 
+                    className={`avatar avatar-editable ${uploadingAvatar ? "avatar-uploading" : ""}`} 
+                    onClick={() => fileInputRef.current?.click()} 
+                    title="Subir foto de perfil"
+                >
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        style={{ display: "none" }} 
+                        accept="image/*" 
+                        onChange={handleAvatarUpload} 
+                    />
+                    <img src={fotoUrl || personIcon} alt="Usuario" className={fotoUrl ? "" : "avatar-icon"} />
                 </div>
                 <div>
                     <h2 className="dashboard-name">{displayName}</h2>
@@ -890,7 +979,7 @@ function DoctorDashboardPage() {
                             </button>
                             <button
                                 className="schedule-secondary-button"
-                                onClick={() => { setIsEditingSchedule(false); setScheduleMsg(null); }}
+                                onClick={() => { setIsEditingSchedule(false); setScheduleMsg(null); fetchAvailability(); }}
                                 disabled={savingSchedule}
                             >
                                 Cancelar
@@ -958,7 +1047,7 @@ function DoctorDashboardPage() {
                             {hospitals.map((h) => (
                                 <button
                                     key={h}
-                                    onClick={() => { setSelectedSede(h); setIsEditingSchedule(false); setScheduleMsg(null); }}
+                                    onClick={() => { setSelectedSede(h); setIsEditingSchedule(false); setScheduleMsg(null); fetchAvailability(); }}
                                     style={{
                                         padding: "6px 14px",
                                         borderRadius: 999,
@@ -1245,5 +1334,46 @@ const closeBtnStyle: React.CSSProperties = {
     cursor: "pointer",
     color: "#6b7280",
 };
+
+function compressImage(file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    resolve(event.target?.result as string); // fallback to original base64
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL("image/jpeg", quality);
+                resolve(dataUrl);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+}
 
 export default DoctorDashboardPage;

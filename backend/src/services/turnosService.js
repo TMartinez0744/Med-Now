@@ -45,7 +45,7 @@ class TurnosService {
                 medico_id,
                 medicos (
                     especialidades,
-                    profiles ( nombre_apellido )
+                    profiles ( nombre_apellido, foto_url )
                 )
             `)
             .eq('paciente_id', pacienteId)
@@ -65,7 +65,7 @@ class TurnosService {
                 id, fecha_hora, estado,
                 paciente_id,
                 pacientes (
-                    profiles ( nombre_apellido )
+                    profiles ( nombre_apellido, foto_url )
                 )
             `)
             .eq('medico_id', medicoId)
@@ -86,7 +86,7 @@ class TurnosService {
                 medico_id,
                 medicos (
                     especialidades,
-                    profiles ( nombre_apellido )
+                    profiles ( nombre_apellido, foto_url )
                 )
             `)
             .eq('paciente_id', pacienteId)
@@ -104,7 +104,7 @@ class TurnosService {
                 id, fecha_hora, estado,
                 paciente_id,
                 pacientes (
-                    profiles ( nombre_apellido )
+                    profiles ( nombre_apellido, foto_url )
                 )
             `)
             .eq('medico_id', medicoId)

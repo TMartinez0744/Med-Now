@@ -21,11 +21,43 @@ class DisponibilidadService {
     }
 
     async create(medicoId, { dia_semana, hora_inicio, hora_fin, sede, duracion_turno }) {
+        const existing = await this.getByMedico(medicoId);
+        const diaInt = parseInt(dia_semana);
+        const sameDaySlots = existing.filter(s => s.dia_semana === diaInt);
+
+        const timeToMinutes = (timeStr) => {
+            if (!timeStr) return 0;
+            const parts = timeStr.split(':');
+            const h = parseInt(parts[0], 10) || 0;
+            const m = parseInt(parts[1], 10) || 0;
+            return h * 60 + m;
+        };
+
+        const newStart = timeToMinutes(hora_inicio);
+        const newEnd = timeToMinutes(hora_fin);
+
+        if (newStart >= newEnd) {
+            const error = new Error('La hora de inicio debe ser menor que la hora de fin');
+            error.code = 'OVERLAP_DISPONIBILIDAD';
+            throw error;
+        }
+
+        for (const slot of sameDaySlots) {
+            const slotStart = timeToMinutes(slot.hora_inicio);
+            const slotEnd = timeToMinutes(slot.hora_fin);
+
+            if (newStart < slotEnd && newEnd > slotStart) {
+                const error = new Error(`El horario seleccionado (${hora_inicio} - ${hora_fin}) se superpone con un horario existente en ${slot.sede || 'otra sede'} (${slot.hora_inicio} - ${slot.hora_fin}).`);
+                error.code = 'OVERLAP_DISPONIBILIDAD';
+                throw error;
+            }
+        }
+
         const { data, error } = await supabaseSedes
             .from('disponibilidad')
             .insert({
                 medico_id:     medicoId,
-                dia_semana:    parseInt(dia_semana),
+                dia_semana:    diaInt,
                 hora_inicio:   hora_inicio,
                 hora_fin:      hora_fin,
                 sede:          sede || null,

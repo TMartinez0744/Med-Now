@@ -20,7 +20,7 @@ type ChatRoom = {
     tipo: string | null;
     derivacion_id: string | null;
     updated_at: string;
-    destinatario: { id: string; nombre_apellido: string; tipo_usuario: string } | null;
+    destinatario: { id: string; nombre_apellido: string; tipo_usuario: string; foto_url?: string | null } | null;
     resumen_derivacion: string | null;
 };
 
@@ -165,7 +165,15 @@ function DoctorChatPage() {
                                 className="doctor-room-item"
                             >
                                 <div className="chat-avatar chat-avatar-other">
-                                    {getInitials(r.destinatario?.nombre_apellido ?? "P")}
+                                    {r.destinatario?.foto_url ? (
+                                        <img 
+                                            src={r.destinatario.foto_url} 
+                                            alt={getInitials(r.destinatario.nombre_apellido)} 
+                                            style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} 
+                                        />
+                                    ) : (
+                                        getInitials(r.destinatario?.nombre_apellido ?? "P")
+                                    )}
                                 </div>
                                 <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                                     <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

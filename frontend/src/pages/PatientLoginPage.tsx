@@ -85,6 +85,7 @@ function PatientLoginPage() {
                     name: partes[0] ?? "",
                     lastName: partes.slice(1).join(" ") ?? "",
                     nombre_apellido: nombreCompleto,
+                    foto_url: result.user?.foto_url ?? null,
                 })
             );
 

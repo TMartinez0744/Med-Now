@@ -28,6 +28,59 @@ function getInitials(name: string): string {
     return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
 }
 
+function getFilenameFromUrl(url: string): string {
+    try {
+        const decoded = decodeURIComponent(url);
+        const parts = decoded.split("/");
+        const lastPart = parts[parts.length - 1];
+        // Quitar el timestamp del inicio si existe
+        return lastPart.split("_").slice(2).join("_") || lastPart.split("_").slice(1).join("_") || lastPart;
+    } catch {
+        return "receta_medica.pdf";
+    }
+}
+
+function compressImage(file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    resolve(event.target?.result as string); // fallback to original base64
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL("image/jpeg", quality);
+                resolve(dataUrl);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+}
+
 function ChatRoomPage({ role }: ChatRoomProps) {
     const { roomId } = useParams<{ roomId: string }>();
     const navigate = useNavigate();
@@ -48,17 +101,125 @@ function ChatRoomPage({ role }: ChatRoomProps) {
     const [messages, setMessages] = useState<Message[]>([]);
     const [destinatarioName, setDestinatarioName] = useState<string>("Cargando...");
     const [destinatarioId, setDestinatarioId] = useState<string | null>(null);
+    const [destinatarioFotoUrl, setDestinatarioFotoUrl] = useState<string | null>(null);
     const [fichaAbierta, setFichaAbierta] = useState(false);
     const [input, setInput] = useState("");
     const [sending, setSending] = useState(false);
     const [fetchingMessages, setFetchingMessages] = useState(true);
     const [otherTyping, setOtherTyping] = useState(false);
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const [uploadingPdf, setUploadingPdf] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const pdfInputRef = useRef<HTMLInputElement | null>(null);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
     const typingTimeoutRef = useRef<number | null>(null);
     const lastTypingSentRef = useRef<number>(0);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !roomId) return;
+        e.target.value = "";
+        setUploadingImage(true);
+        try {
+            const fileExt = file.name.split(".").pop();
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+            const filePath = `room_${roomId}/${fileName}`;
+
+            // Comprimir la imagen antes de subirla
+            const base64File = await compressImage(file);
+
+            // Subir a través del backend
+            const uploadRes = await apiFetch("/api/upload", {
+                method: "POST",
+                body: JSON.stringify({
+                    file: base64File,
+                    filename: filePath,
+                    mimeType: "image/jpeg" // siempre es jpeg luego de canvas.toDataURL("image/jpeg")
+                })
+            });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok || !uploadData.success) {
+                throw new Error(uploadData.message ?? "Error al subir la imagen");
+            }
+            const publicUrl = uploadData.publicUrl;
+
+            const res = await apiFetch(`/api/chats/${roomId}/mensajes`, {
+                method: "POST",
+                body: JSON.stringify({ contenido: publicUrl, tipo: "imagen" }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message ?? "Error al enviar la imagen");
+            const sentMsg = data.data as Message;
+            setMessages((prev) => {
+                if (prev.some((m) => m.id === sentMsg.id)) return prev;
+                return [...prev, sentMsg];
+            });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Error al subir la imagen";
+            showToast(msg);
+        } finally {
+            setUploadingImage(false);
+        }
+    };
+    const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !roomId) return;
+        if (file.type !== "application/pdf") {
+            showToast("El archivo seleccionado debe ser un archivo PDF.");
+            return;
+        }
+        e.target.value = "";
+        setUploadingPdf(true);
+        try {
+            const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}_${file.name}`;
+            const filePath = `room_${roomId}/documents/${fileName}`;
+
+            // Leer archivo como Base64
+            const base64File = await new Promise<string>((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result as string);
+                reader.onerror = (err) => reject(err);
+            });
+
+            // Subir a través del backend
+            const uploadRes = await apiFetch("/api/upload", {
+                method: "POST",
+                body: JSON.stringify({
+                    file: base64File,
+                    filename: filePath,
+                    mimeType: "application/pdf"
+                })
+            });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok || !uploadData.success) {
+                throw new Error(uploadData.message ?? "Error al subir el archivo");
+            }
+            const publicUrl = uploadData.publicUrl;
+
+            // Guardar el mensaje como tipo 'documento'
+            const res = await apiFetch(`/api/chats/${roomId}/mensajes`, {
+                method: "POST",
+                body: JSON.stringify({ contenido: publicUrl, tipo: "documento" }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data.success) throw new Error(data.message ?? "Error al enviar el archivo");
+            const sentMsg = data.data as Message;
+            setMessages((prev) => {
+                if (prev.some((m) => m.id === sentMsg.id)) return prev;
+                return [...prev, sentMsg];
+            });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Error al subir el documento";
+            showToast(msg);
+        } finally {
+            setUploadingPdf(false);
+        }
+    };
 
     // 1. Cargar historial y nombre del destinatario
     useEffect(() => {
@@ -78,6 +239,7 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                         const nombre = currentRoom.destinatario.nombre_apellido;
                         setDestinatarioName(role === "patient" ? formatDoctorName(nombre) : nombre);
                         setDestinatarioId(currentRoom.destinatario.id);
+                        setDestinatarioFotoUrl(currentRoom.destinatario.foto_url ?? null);
                     } else {
                         setDestinatarioName(role === "patient" ? "Médico" : "Paciente");
                     }
@@ -257,8 +419,16 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                     </svg>
                 </button>
 
-                <div className="chat-header-avatar chat-header-avatar-initials">
-                    {getInitials(destinatarioName)}
+                <div className="chat-header-avatar">
+                    {destinatarioFotoUrl ? (
+                        <img 
+                            src={destinatarioFotoUrl} 
+                            alt={getInitials(destinatarioName)} 
+                            style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} 
+                        />
+                    ) : (
+                        getInitials(destinatarioName)
+                    )}
                 </div>
 
                 <div className="chat-header-text">
@@ -355,12 +525,60 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                                 )}
                                 <div className={`chat-bubble-row ${isMine ? "user" : "assistant"}`}>
                                     {!isMine && (
-                                        isLastOfGroup
-                                            ? <div className="chat-avatar chat-avatar-other">{initials}</div>
-                                            : <div className="chat-avatar-placeholder" />
+                                        isLastOfGroup ? (
+                                            <div className="chat-avatar chat-avatar-other">
+                                                {destinatarioFotoUrl ? (
+                                                    <img 
+                                                        src={destinatarioFotoUrl} 
+                                                        alt={initials} 
+                                                        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} 
+                                                    />
+                                                ) : (
+                                                    initials
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="chat-avatar-placeholder" />
+                                        )
                                     )}
-                                    <div className={`chat-bubble ${isMine ? "user" : "assistant"}`}>
-                                        <p className="chat-bubble-line">{msg.contenido}</p>
+                                    <div
+                                        className={`chat-bubble ${isMine ? "user" : "assistant"}`}
+                                        style={msg.tipo === "imagen" ? { padding: 4, background: "transparent", border: "none" } : msg.tipo === "documento" ? { padding: 0, overflow: "hidden", border: "none", background: "transparent" } : {}}
+                                    >
+                                        {msg.tipo === "imagen" ? (
+                                            <img
+                                                src={msg.contenido}
+                                                alt="Imagen enviada"
+                                                className="chat-image-preview"
+                                                onClick={() => setLightboxImage(msg.contenido)}
+                                            />
+                                        ) : msg.tipo === "documento" ? (
+                                            <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", background: isMine ? "#2f5cf5" : "#f3f4f6", border: isMine ? "none" : "1px solid #e5e7eb", borderRadius: 16, minWidth: 220 }}>
+                                                <div style={{ width: 36, height: 36, borderRadius: 10, background: isMine ? "rgba(255,255,255,0.2)" : "#fee2e2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isMine ? "white" : "#ef4444"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                                        <polyline points="14 2 14 8 20 8"/>
+                                                        <line x1="16" y1="13" x2="8" y2="13"/>
+                                                        <line x1="16" y1="17" x2="8" y2="17"/>
+                                                    </svg>
+                                                </div>
+                                                <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                                                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: isMine ? "white" : "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                                        {getFilenameFromUrl(msg.contenido)}
+                                                    </p>
+                                                    <a 
+                                                        href={msg.contenido} 
+                                                        target="_blank" 
+                                                        rel="noopener noreferrer" 
+                                                        style={{ display: "inline-block", marginTop: 4, fontSize: 12, fontWeight: 700, color: isMine ? "#93c5fd" : "#2f5cf5", textDecoration: "none" }}
+                                                    >
+                                                        Ver / Descargar PDF
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="chat-bubble-line">{msg.contenido}</p>
+                                        )}
                                         <span
                                             style={{
                                                 display: "block",
@@ -368,16 +586,28 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                                                 fontSize: 10,
                                                 marginTop: 4,
                                                 opacity: 0.7,
-                                                color: isMine ? "white" : "#6b7280",
+                                                color: isMine ? (msg.tipo === "imagen" ? "#6b7280" : "white") : "#6b7280",
                                             }}
                                         >
                                             {time}
                                         </span>
                                     </div>
                                     {isMine && (
-                                        isLastOfGroup
-                                            ? <div className="chat-avatar chat-avatar-mine">{initials}</div>
-                                            : <div className="chat-avatar-placeholder" />
+                                        isLastOfGroup ? (
+                                            <div className="chat-avatar chat-avatar-mine">
+                                                {activeUser.foto_url ? (
+                                                    <img 
+                                                        src={activeUser.foto_url} 
+                                                        alt={initials} 
+                                                        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} 
+                                                    />
+                                                ) : (
+                                                    initials
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="chat-avatar-placeholder" />
+                                        )
                                     )}
                                 </div>
                             </div>
@@ -388,7 +618,17 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                 {otherTyping && (
                     <div className="chat-message-group other">
                         <div className="chat-bubble-row assistant">
-                            <div className="chat-avatar chat-avatar-other">{getInitials(destinatarioName)}</div>
+                            <div className="chat-avatar chat-avatar-other">
+                                {destinatarioFotoUrl ? (
+                                    <img 
+                                        src={destinatarioFotoUrl} 
+                                        alt={getInitials(destinatarioName)} 
+                                        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} 
+                                    />
+                                ) : (
+                                    getInitials(destinatarioName)
+                                )}
+                            </div>
                             <div className="chat-bubble assistant chat-typing">
                                 <span /><span /><span />
                             </div>
@@ -399,7 +639,60 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="chat-input-bar">
+            <div className="chat-input-bar" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: "none" }}
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                />
+                <button
+                    className="chat-attachment-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={sending || uploadingImage || fetchingMessages}
+                    type="button"
+                    title="Enviar foto"
+                >
+                    {uploadingImage ? (
+                        <span className="chat-upload-spinner" style={{ margin: 0 }} />
+                    ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                    )}
+                </button>
+                {role === "doctor" && (
+                    <>
+                        <input
+                            type="file"
+                            ref={pdfInputRef}
+                            style={{ display: "none" }}
+                            accept="application/pdf"
+                            onChange={handlePdfUpload}
+                        />
+                        <button
+                            className="chat-attachment-btn"
+                            onClick={() => pdfInputRef.current?.click()}
+                            disabled={sending || uploadingPdf || fetchingMessages}
+                            type="button"
+                            title="Enviar receta/certificado (PDF)"
+                        >
+                            {uploadingPdf ? (
+                                <span className="chat-upload-spinner" style={{ margin: 0 }} />
+                            ) : (
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                    <line x1="16" y1="13" x2="8" y2="13"/>
+                                    <line x1="16" y1="17" x2="8" y2="17"/>
+                                </svg>
+                            )}
+                        </button>
+                    </>
+                )}
                 <textarea
                     ref={textareaRef}
                     className="chat-input"
@@ -453,6 +746,17 @@ function ChatRoomPage({ role }: ChatRoomProps) {
                                 Finalizar
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {lightboxImage && (
+                <div className="chat-lightbox-overlay" onClick={() => setLightboxImage(null)}>
+                    <div className="chat-lightbox-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="chat-lightbox-close" onClick={() => setLightboxImage(null)}>
+                            ✕
+                        </button>
+                        <img src={lightboxImage} alt="Fullscreen" className="chat-lightbox-img" />
                     </div>
                 </div>
             )}

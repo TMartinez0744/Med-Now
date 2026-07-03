@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Navbar from "../components/Navbar";
 import { useNavigate } from "react-router-dom";
 import personIcon from "../assets/person.svg";
@@ -89,6 +89,64 @@ function PatientDashboardPage() {
     const [savingName, setSavingName] = useState(false);
     const [perfilIncompleto, setPerfilIncompleto] = useState(false);
     const [showHistorialCambiosModal, setShowHistorialCambiosModal] = useState(false);
+
+    // Avatar/Foto de perfil
+    const [fotoUrl, setFotoUrl] = useState<string>(patientData.foto_url ?? "");
+    const [uploadingAvatar, setUploadingAvatar] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file || !patientData.id) return;
+        e.target.value = "";
+        setUploadingAvatar(true);
+        try {
+            const fileExt = file.name.split(".").pop();
+            const fileName = `avatar_${patientData.id}_${Date.now()}.${fileExt}`;
+            const filePath = `avatars/${fileName}`;
+
+            // Comprimir la imagen
+            const base64File = await compressImage(file);
+
+            // Subir a través del backend
+            const uploadRes = await apiFetch("/api/upload", {
+                method: "POST",
+                body: JSON.stringify({
+                    file: base64File,
+                    filename: filePath,
+                    mimeType: "image/jpeg"
+                })
+            });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok || !uploadData.success) {
+                throw new Error(uploadData.message ?? "Error al subir la imagen");
+            }
+            const publicUrl = uploadData.publicUrl;
+
+            // Guardar en la base de datos del perfil
+            const profileRes = await apiFetch(`/api/profiles/${patientData.id}`, {
+                method: "PATCH",
+                body: JSON.stringify({ foto_url: publicUrl })
+            });
+            const profileData = await profileRes.json();
+            if (!profileRes.ok || !profileData.success) {
+                throw new Error(profileData.message ?? "Error al guardar la foto de perfil");
+            }
+
+            setFotoUrl(publicUrl);
+            
+            // Actualizar localStorage
+            const currentPatientData = JSON.parse(localStorage.getItem("patientData") || "{}");
+            localStorage.setItem("patientData", JSON.stringify({ ...currentPatientData, foto_url: publicUrl }));
+            
+            showToast("Foto de perfil actualizada con éxito", "success");
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Error al subir la foto de perfil";
+            showToast(msg);
+        } finally {
+            setUploadingAvatar(false);
+        }
+    };
 
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [currentPassword, setCurrentPassword] = useState("");
@@ -225,6 +283,12 @@ function PatientDashboardPage() {
                 const { data } = await res.json();
                 if (data) {
                     if (data.obra_social) setObraSocial(data.obra_social);
+                    if (data.foto_url) {
+                        setFotoUrl(data.foto_url);
+                        // Sincronizar localStorage
+                        const currentPatientData = JSON.parse(localStorage.getItem("patientData") || "{}");
+                        localStorage.setItem("patientData", JSON.stringify({ ...currentPatientData, foto_url: data.foto_url }));
+                    }
                     const ficha = data.ficha_medica as any;
                     if (ficha) {
                         if (ficha.condiciones) setCondiciones(ficha.condiciones);
@@ -364,8 +428,19 @@ function PatientDashboardPage() {
         <div className="dashboard-container">
             {/* Header */}
             <div className="dashboard-header">
-                <div className="avatar">
-                    <img src={personIcon} alt="Usuario" className="avatar-icon" />
+                <div 
+                    className={`avatar avatar-editable ${uploadingAvatar ? "avatar-uploading" : ""}`} 
+                    onClick={() => fileInputRef.current?.click()} 
+                    title="Subir foto de perfil"
+                >
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        style={{ display: "none" }} 
+                        accept="image/*" 
+                        onChange={handleAvatarUpload} 
+                    />
+                    <img src={fotoUrl || personIcon} alt="Usuario" className={fotoUrl ? "" : "avatar-icon"} />
                 </div>
                 <div>
                     <h2 className="dashboard-name">{displayName}</h2>
@@ -956,5 +1031,46 @@ const suggestionBtnStyle: React.CSSProperties = {
     textAlign: "left",
     color: "#374151",
 };
+
+function compressImage(file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    resolve(event.target?.result as string); // fallback to original base64
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL("image/jpeg", quality);
+                resolve(dataUrl);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+}
 
 export default PatientDashboardPage;

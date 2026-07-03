@@ -42,16 +42,6 @@ const register = async (req, res) => {
 
         if (tipo_usuario === 'medico') {
             await supabase.from('medicos').insert([{ id: userId, especialidades: [], sedes: [], email: email || null, recibir_turnos: true }]);
-            
-            // Insertar disponibilidad por defecto (Lunes a Viernes, de 08:00 a 18:00)
-            const defaultDisponibilidad = [1, 2, 3, 4, 5].map(dia => ({
-                id: crypto.randomUUID(),
-                medico_id: userId,
-                dia_semana: dia,
-                hora_inicio: '08:00:00',
-                hora_fin: '18:00:00'
-            }));
-            await supabase.from('disponibilidad').insert(defaultDisponibilidad);
         } else if (tipo_usuario === 'paciente') {
             await supabase.from('pacientes').insert([{ id: userId, obra_social: null }]);
             await supabaseSedes.from('paciente_perfil').insert([{
@@ -82,7 +72,7 @@ const login = async (req, res) => {
     try {
         const { data: profiles, error } = await supabase
             .from('profiles')
-            .select('id, nombre_apellido, dni, tipo_usuario, password')
+            .select('id, nombre_apellido, dni, tipo_usuario, password, foto_url')
             .or(`dni.eq.${dniNormalizado},dni.ilike.*${dniNormalizado}`);
 
         if (error) {
@@ -155,7 +145,7 @@ const googleLogin = async (req, res) => {
         // 2. Buscar si existe en profiles por id
         let { data: profile } = await supabase
             .from('profiles')
-            .select('id, nombre_apellido, dni, tipo_usuario')
+            .select('id, nombre_apellido, dni, tipo_usuario, foto_url')
             .eq('id', userId)
             .maybeSingle();
 
@@ -171,7 +161,7 @@ const googleLogin = async (req, res) => {
                 // Si encontramos el paciente por su email, usamos ese perfil
                 const { data: existingProfile } = await supabase
                     .from('profiles')
-                    .select('id, nombre_apellido, dni, tipo_usuario')
+                    .select('id, nombre_apellido, dni, tipo_usuario, foto_url')
                     .eq('id', perfilEmail.paciente_id)
                     .maybeSingle();
                 profile = existingProfile;
@@ -184,12 +174,14 @@ const googleLogin = async (req, res) => {
             const digits = userId.replace(/\D/g, '');
             const provisionalDni = '99' + (digits.slice(0, 6).padStart(6, '0') || String(Math.floor(100000 + Math.random() * 900000)));
 
+            const googleAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
             // Crear perfil base
             await supabase.from('profiles').insert([{
                 id: userId,
                 dni: provisionalDni,
                 nombre_apellido: fullName,
                 tipo_usuario: 'paciente',
+                foto_url: googleAvatar
             }]);
 
             // Crear rol paciente
@@ -199,7 +191,8 @@ const googleLogin = async (req, res) => {
                 id: userId,
                 dni: provisionalDni,
                 nombre_apellido: fullName,
-                tipo_usuario: 'paciente'
+                tipo_usuario: 'paciente',
+                foto_url: googleAvatar
             };
         }
 

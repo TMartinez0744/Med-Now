@@ -33,6 +33,7 @@ type Slot = {
 type Medico = {
     id: string;
     nombre_apellido: string;
+    foto_url?: string | null;
     especialidades: string[];
     sedes: string[];
     recibir_turnos: boolean;
@@ -102,7 +103,7 @@ type TurnoBackend = {
     medico_id: string;
     medicos: {
         especialidades: string[];
-        profiles: { nombre_apellido: string };
+        profiles: { nombre_apellido: string; foto_url?: string | null };
     } | null;
 };
 
@@ -260,7 +261,7 @@ function TurnosPage() {
                 const jMedicos = await rMedicos.json();
                 const listaMedicos: Array<{
                     id: string; especialidades: string[]; sedes: string[];
-                    recibir_turnos: boolean; profiles: { nombre_apellido: string };
+                    recibir_turnos: boolean; profiles: { nombre_apellido: string; foto_url?: string | null };
                 }> = jMedicos.data ?? [];
 
                 const conSlots: Medico[] = await Promise.all(
@@ -274,6 +275,7 @@ function TurnosPage() {
                                 id: m.id,
                                 obras_sociales: (m as any).obras_sociales ?? [],
                                 nombre_apellido: m.profiles?.nombre_apellido ?? "Médico",
+                                foto_url: m.profiles?.foto_url ?? null,
                                 especialidades: m.especialidades ?? [],
                                 sedes: m.sedes ?? [],
                                 recibir_turnos: m.recibir_turnos,
@@ -459,29 +461,38 @@ function TurnosPage() {
                             return (
                                 <div key={t.id} className="dashboard-card" style={{ margin: 0, padding: "16px 18px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", marginBottom: 3 }}>
-                                                {formatDoctorName(t.medicos?.profiles?.nombre_apellido)}
+                                        <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1 }}>
+                                            <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                                {t.medicos?.profiles?.foto_url ? (
+                                                    <img src={t.medicos.profiles.foto_url} alt={t.medicos.profiles.nombre_apellido} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                ) : (
+                                                    <span style={{ fontSize: 16, color: "#9ca3af" }}>👤</span>
+                                                )}
                                             </div>
-                                            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-                                                {t.medicos?.especialidades?.[0] ?? ""}
-                                            </div>
-                                            <div style={{ display: "flex", gap: 16 }}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
-                                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                                        <line x1="16" y1="2" x2="16" y2="6" />
-                                                        <line x1="8" y1="2" x2="8" y2="6" />
-                                                        <line x1="3" y1="10" x2="21" y2="10" />
-                                                    </svg>
-                                                    <span style={{ fontSize: 13, color: "#374151" }}>{fecha}</span>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", marginBottom: 3 }}>
+                                                    {formatDoctorName(t.medicos?.profiles?.nombre_apellido)}
                                                 </div>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
-                                                        <circle cx="12" cy="12" r="10" />
-                                                        <polyline points="12 6 12 12 16 14" />
-                                                    </svg>
-                                                    <span style={{ fontSize: 13, color: "#374151" }}>{hora} hs</span>
+                                                <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
+                                                    {t.medicos?.especialidades?.[0] ?? ""}
+                                                </div>
+                                                <div style={{ display: "flex", gap: 16 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+                                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                                            <line x1="16" y1="2" x2="16" y2="6" />
+                                                            <line x1="8" y1="2" x2="8" y2="6" />
+                                                            <line x1="3" y1="10" x2="21" y2="10" />
+                                                        </svg>
+                                                        <span style={{ fontSize: 13, color: "#374151" }}>{fecha}</span>
+                                                    </div>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+                                                            <circle cx="12" cy="12" r="10" />
+                                                            <polyline points="12 6 12 12 16 14" />
+                                                        </svg>
+                                                        <span style={{ fontSize: 13, color: "#374151" }}>{hora} hs</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -529,29 +540,38 @@ function TurnosPage() {
                             return (
                                 <div key={t.id} className="dashboard-card" style={{ margin: 0, padding: "16px 18px" }}>
                                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", marginBottom: 3 }}>
-                                                {formatDoctorName(t.medicos?.profiles?.nombre_apellido)}
+                                        <div style={{ display: "flex", gap: 12, alignItems: "center", flex: 1 }}>
+                                            <div style={{ width: 40, height: 40, borderRadius: "50%", overflow: "hidden", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                                {t.medicos?.profiles?.foto_url ? (
+                                                    <img src={t.medicos.profiles.foto_url} alt={t.medicos.profiles.nombre_apellido} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                                ) : (
+                                                    <span style={{ fontSize: 16, color: "#9ca3af" }}>👤</span>
+                                                )}
                                             </div>
-                                            <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
-                                                {t.medicos?.especialidades?.[0] ?? ""}
-                                            </div>
-                                            <div style={{ display: "flex", gap: 16 }}>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
-                                                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                                        <line x1="16" y1="2" x2="16" y2="6" />
-                                                        <line x1="8" y1="2" x2="8" y2="6" />
-                                                        <line x1="3" y1="10" x2="21" y2="10" />
-                                                    </svg>
-                                                    <span style={{ fontSize: 13, color: "#374151" }}>{fecha}</span>
+                                            <div style={{ flex: 1 }}>
+                                                <div style={{ fontWeight: 700, fontSize: 15, color: "#111827", marginBottom: 3 }}>
+                                                    {formatDoctorName(t.medicos?.profiles?.nombre_apellido)}
                                                 </div>
-                                                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
-                                                        <circle cx="12" cy="12" r="10" />
-                                                        <polyline points="12 6 12 12 16 14" />
-                                                    </svg>
-                                                    <span style={{ fontSize: 13, color: "#374151" }}>{hora} hs</span>
+                                                <div style={{ fontSize: 13, color: "#6b7280", marginBottom: 12 }}>
+                                                    {t.medicos?.especialidades?.[0] ?? ""}
+                                                </div>
+                                                <div style={{ display: "flex", gap: 16 }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+                                                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                                                            <line x1="16" y1="2" x2="16" y2="6" />
+                                                            <line x1="8" y1="2" x2="8" y2="6" />
+                                                            <line x1="3" y1="10" x2="21" y2="10" />
+                                                        </svg>
+                                                        <span style={{ fontSize: 13, color: "#374151" }}>{fecha}</span>
+                                                    </div>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2">
+                                                            <circle cx="12" cy="12" r="10" />
+                                                            <polyline points="12 6 12 12 16 14" />
+                                                        </svg>
+                                                        <span style={{ fontSize: 13, color: "#374151" }}>{hora} hs</span>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -658,15 +678,24 @@ function TurnosPage() {
 
                         return (
                             <div key={medico.id} className="dashboard-card">
-                                <div style={{ marginBottom: 12 }}>
-                                    <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "#111827" }}>
-                                        {formatDoctorName(medico.nombre_apellido)}
-                                    </p>
-                                    {medico.sedes.length > 0 && (
-                                        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#6b7280" }}>
-                                            📍 {medico.sedes.join(" · ")}
+                                <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 12 }}>
+                                    <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "#f3f4f6", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                        {medico.foto_url ? (
+                                            <img src={medico.foto_url} alt={medico.nombre_apellido} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                        ) : (
+                                            <span style={{ fontSize: 18, color: "#9ca3af" }}>👤</span>
+                                        )}
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <p style={{ margin: 0, fontWeight: 700, fontSize: 17, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                            {formatDoctorName(medico.nombre_apellido)}
                                         </p>
-                                    )}
+                                        {medico.sedes.length > 0 && (
+                                            <p style={{ margin: "2px 0 0", fontSize: 13, color: "#6b7280" }}>
+                                                📍 {medico.sedes.join(" · ")}
+                                            </p>
+                                        )}
+                                    </div>
                                 </div>
 
                                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>

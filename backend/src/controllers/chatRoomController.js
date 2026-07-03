@@ -97,7 +97,8 @@ class ChatRoomController {
                     select: {
                         nombre_apellido: true,
                         dni: true,
-                        tipo_usuario: true
+                        tipo_usuario: true,
+                        foto_url: true
                     }
                 });
 
@@ -117,7 +118,8 @@ class ChatRoomController {
                         id: targetId,
                         nombre_apellido: profile.nombre_apellido,
                         dni: profile.dni,
-                        tipo_usuario: profile.tipo_usuario
+                        tipo_usuario: profile.tipo_usuario,
+                        foto_url: profile.foto_url
                     } : null,
                     resumen_derivacion: resumen,
                 };
@@ -250,7 +252,7 @@ class ChatRoomController {
             return res.status(400).json({ success: false, message: 'El contenido del mensaje no puede estar vacío.' });
         }
 
-        const tipoValido = ['texto', 'sistema', 'contexto', 'imagen'].includes(tipo) ? tipo : 'texto';
+        const tipoValido = ['texto', 'sistema', 'contexto', 'imagen', 'documento'].includes(tipo) ? tipo : 'texto';
 
         try {
             // 1. Verificar existencia de la sala y participación del usuario

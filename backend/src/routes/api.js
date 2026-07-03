@@ -27,7 +27,7 @@ router.get('/medicos', async (req, res) => {
                 especialidades,
                 sedes,
                 recibir_turnos,
-                profiles (nombre_apellido, dni)
+                profiles (nombre_apellido, dni, foto_url)
             `);
 
         if (error) throw error;
@@ -62,7 +62,7 @@ router.get('/medicos/:id', verifyOwnershipOrRole(['paciente', 'admin'], 'id'), a
                 email,
                 recibir_turnos,
                 perfil_completo,
-                profiles (nombre_apellido, dni)
+                profiles (nombre_apellido, dni, foto_url)
             `)
             .eq('id', id)
             .single();
@@ -177,7 +177,7 @@ router.get('/pacientes', authorizeRoles('medico', 'admin'), async (req, res) => 
                 id,
                 obra_social,
                 ficha_medica,
-                profiles (nombre_apellido, dni)
+                profiles (nombre_apellido, dni, foto_url)
             `);
         
         if (error) throw error;
@@ -458,7 +458,7 @@ router.get('/pacientes/:id/ficha', verifyOwnershipOrRole(['medico'], 'id'), asyn
     try {
         const [{ data: paciente, error: e1 }, { data: profile, error: e2 }] = await Promise.all([
             supabase.from('pacientes').select('obra_social, ficha_medica').eq('id', id).single(),
-            supabase.from('profiles').select('nombre_apellido, dni').eq('id', id).single(),
+            supabase.from('profiles').select('nombre_apellido, dni, foto_url').eq('id', id).single(),
         ]);
         if (e1) throw e1;
         if (e2) throw e2;
@@ -533,7 +533,8 @@ router.get('/pacientes/:id/ficha/historial', verifyOwnershipOrRole(['medico'], '
                 created_at,
                 profiles (
                     nombre_apellido,
-                    tipo_usuario
+                    tipo_usuario,
+                    foto_url
                 )
             `)
             .eq('paciente_id', id)
@@ -572,9 +573,10 @@ router.patch('/pacientes/:id/obra-social', verifyOwnershipOrRole([], 'id'), asyn
 // Solo el propio usuario dueño del perfil puede actualizar sus datos
 router.patch('/profiles/:id', verifyOwnershipOrRole([], 'id'), async (req, res) => {
     const { id } = req.params;
-    const { nombre_apellido, dni } = req.body;
+    const { nombre_apellido, dni, foto_url } = req.body;
     const updates = {};
     if (nombre_apellido) updates.nombre_apellido = nombre_apellido;
+    if (foto_url !== undefined) updates.foto_url = foto_url;
     if (dni) {
         const dniLimpio = String(dni).trim();
         const { data: existente } = await supabase

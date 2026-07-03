@@ -15,6 +15,7 @@ interface Props {
 interface FichaData {
     nombre_apellido: string;
     dni: string;
+    foto_url: string | null;
     obra_social: string | null;
     numero_afiliado: string | null;
     condiciones: { id: number; label: string }[];
@@ -97,6 +98,7 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
                 setFicha({
                     nombre_apellido: data?.nombre_apellido ?? nombrePaciente ?? "Paciente",
                     dni: data?.dni ?? "-",
+                    foto_url: data?.foto_url ?? null,
                     obra_social: data?.obra_social ?? null,
                     numero_afiliado: perfil?.numero_afiliado ?? null,
                     condiciones: fm?.condiciones ?? [],
@@ -106,7 +108,7 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
                     email: perfil?.email ?? null,
                 });
             } catch {
-                setFicha({ nombre_apellido: nombrePaciente ?? "Paciente", dni: "-", obra_social: null, numero_afiliado: null, condiciones: [], alergias: [], genero: null, fecha_nacimiento: null, email: null });
+                setFicha({ nombre_apellido: nombrePaciente ?? "Paciente", dni: "-", foto_url: null, obra_social: null, numero_afiliado: null, condiciones: [], alergias: [], genero: null, fecha_nacimiento: null, email: null });
             }
             setLoading(false);
         };
@@ -274,24 +276,33 @@ function FichaPaciente({ pacienteId, medicoId, nombreMedico, matriculaMedico, no
                     <p style={{ textAlign: "center", color: "#6b7280", padding: "24px 0" }}>Cargando...</p>
                 ) : ficha && (
                     <>
-                        <div style={{ background: "#f0f4ff", borderRadius: 14, padding: "14px 16px", marginBottom: 20 }}>
-                            <p style={{ margin: "0 0 4px", fontWeight: 700, fontSize: 16, color: "#111827" }}>
-                                {ficha.nombre_apellido}
-                            </p>
-                            <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>DNI: {ficha.dni}</p>
-                            {ficha.genero && (
-                                <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>{ficha.genero}</p>
-                            )}
-                            {ficha.fecha_nacimiento && (
-                                <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>
-                                    {calcularEdad(ficha.fecha_nacimiento)} años
+                        <div style={{ background: "#f0f4ff", borderRadius: 14, padding: "14px 16px", marginBottom: 20, display: "flex", gap: 12, alignItems: "center" }}>
+                            <div style={{ width: 44, height: 44, borderRadius: "50%", overflow: "hidden", background: "#dbeafe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                                {ficha.foto_url ? (
+                                    <img src={ficha.foto_url} alt={ficha.nombre_apellido} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                ) : (
+                                    <span style={{ fontSize: 18, color: "#1d4ed8" }}>👤</span>
+                                )}
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <p style={{ margin: "0 0 2px", fontWeight: 700, fontSize: 16, color: "#111827", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                    {ficha.nombre_apellido}
                                 </p>
-                            )}
-                            {ficha.obra_social && (
-                                <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>
-                                    🛡 {ficha.obra_social}{ficha.numero_afiliado ? ` · N° ${ficha.numero_afiliado}` : ""}
-                                </p>
-                            )}
+                                <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>DNI: {ficha.dni}</p>
+                                {ficha.genero && (
+                                    <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>{ficha.genero}</p>
+                                )}
+                                {ficha.fecha_nacimiento && (
+                                    <p style={{ margin: "0 0 2px", fontSize: 13, color: "#6b7280" }}>
+                                        {calcularEdad(ficha.fecha_nacimiento)} años
+                                    </p>
+                                )}
+                                {ficha.obra_social && (
+                                    <p style={{ margin: 0, fontSize: 13, color: "#6b7280" }}>
+                                        🛡 {ficha.obra_social}{ficha.numero_afiliado ? ` · N° ${ficha.numero_afiliado}` : ""}
+                                    </p>
+                                )}
+                            </div>
                         </div>
 
                         <div style={{ marginBottom: 18 }}>

@@ -59,6 +59,7 @@ function DoctorLoginPage() {
                     nombre_apellido: result.user.nombre_apellido,
                     especialidades: result.user.medico?.especialidades ?? [],
                     sedes: result.user.medico?.sedes ?? [],
+                    foto_url: result.user.foto_url ?? null,
                 })
             );
 

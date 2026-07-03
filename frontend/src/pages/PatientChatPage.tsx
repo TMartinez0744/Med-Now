@@ -11,6 +11,7 @@ const HISTORY_LIMIT = 20;
 type ChatMessage = {
     role: "user" | "assistant";
     content: string;
+    tipo?: string | null;
 };
 
 type ChatHistoryItem = {
@@ -119,6 +120,47 @@ const RobotAvatar = ({ size = 24, stroke = "white" }: { size?: number; stroke?: 
     </svg>
 );
 
+function compressImage(file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.7): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target?.result as string;
+            img.onload = () => {
+                const canvas = document.createElement("canvas");
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                } else {
+                    if (height > maxHeight) {
+                        width = Math.round((width * maxHeight) / height);
+                        height = maxHeight;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    resolve(event.target?.result as string); // fallback to original base64
+                    return;
+                }
+                ctx.drawImage(img, 0, 0, width, height);
+                const dataUrl = canvas.toDataURL("image/jpeg", quality);
+                resolve(dataUrl);
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+}
+
 function PatientChatPage() {
     const navigate = useNavigate();
     const patientData = useMemo(() => {
@@ -140,6 +182,8 @@ function PatientChatPage() {
     const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
     const [doctorRooms, setDoctorRooms] = useState<DoctorRoom[]>([]);
     const [unreadByMedico, setUnreadByMedico] = useState<Record<string, number>>({});
+    const [uploadingImage, setUploadingImage] = useState(false);
+    const [lightboxImage, setLightboxImage] = useState<string | null>(null);
 
     // Derivación a médico humano
     const [derivacionId, setDerivacionId] = useState<string | null>(null);
@@ -149,6 +193,59 @@ function PatientChatPage() {
 
     const messagesEndRef = useRef<HTMLDivElement | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = "";
+        setUploadingImage(true);
+        setError(null);
+        try {
+            const fileExt = file.name.split(".").pop();
+            const fileName = `ai_${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+            const filePath = `ai_chat/${fileName}`;
+
+            // Comprimir la imagen antes de subirla
+            const base64File = await compressImage(file);
+
+            // Subir a través del backend
+            const uploadRes = await apiFetch("/api/upload", {
+                method: "POST",
+                body: JSON.stringify({
+                    file: base64File,
+                    filename: filePath,
+                    mimeType: "image/jpeg" // siempre es jpeg luego de canvas.toDataURL("image/jpeg")
+                })
+            });
+            const uploadData = await uploadRes.json();
+            if (!uploadRes.ok || !uploadData.success) {
+                throw new Error(uploadData.message ?? "Error al subir la imagen");
+            }
+            const publicUrl = uploadData.publicUrl;
+
+            const newMessages: ChatMessage[] = [...messages, { role: "user", content: publicUrl, tipo: "imagen" }];
+            setMessages(newMessages);
+            setLoading(true);
+
+            const conversationMessages = newMessages.slice(1);
+            const response = await apiFetch("/api/chat", {
+                method: "POST",
+                body: JSON.stringify({ messages: conversationMessages }),
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.message ?? "Error al obtener respuesta");
+            }
+            setMessages([...newMessages, { role: "assistant", content: data.data.reply }]);
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : "Error al subir la imagen";
+            setError(msg);
+        } finally {
+            setUploadingImage(false);
+            setLoading(false);
+        }
+    };
 
     // Polling de la derivación cuando hay una activa
     useEffect(() => {
@@ -527,15 +624,39 @@ function PatientChatPage() {
                                             ? <div className="chat-avatar chat-avatar-bot"><RobotAvatar size={18} stroke="white" /></div>
                                             : <div className="chat-avatar-placeholder" />
                                     )}
-                                    <div className={`chat-bubble ${isMine ? "user" : "assistant"}`}>
-                                        {display.split("\n").map((line, idx) => (
-                                            <p key={idx} className="chat-bubble-line">{line}</p>
-                                        ))}
+                                    <div
+                                        className={`chat-bubble ${isMine ? "user" : "assistant"}`}
+                                        style={msg.tipo === "imagen" ? { padding: 4, background: "transparent", border: "none" } : {}}
+                                    >
+                                        {msg.tipo === "imagen" ? (
+                                            <img
+                                                src={msg.content}
+                                                alt="Imagen de historial"
+                                                className="chat-image-preview"
+                                                onClick={() => setLightboxImage(msg.content)}
+                                            />
+                                        ) : (
+                                            display.split("\n").map((line, idx) => (
+                                                <p key={idx} className="chat-bubble-line">{line}</p>
+                                            ))
+                                        )}
                                     </div>
                                     {isMine && (
-                                        isLastOfGroup
-                                            ? <div className="chat-avatar chat-avatar-mine">{getInitials(senderName)}</div>
-                                            : <div className="chat-avatar-placeholder" />
+                                        isLastOfGroup ? (
+                                            <div className="chat-avatar chat-avatar-mine">
+                                                {patientData.foto_url ? (
+                                                    <img 
+                                                        src={patientData.foto_url} 
+                                                        alt={getInitials(senderName)} 
+                                                        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} 
+                                                    />
+                                                ) : (
+                                                    getInitials(senderName)
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="chat-avatar-placeholder" />
+                                        )
                                     )}
                                 </div>
                             </div>
@@ -612,15 +733,39 @@ function PatientChatPage() {
                                         ? <div className="chat-avatar chat-avatar-bot"><RobotAvatar size={18} stroke="white" /></div>
                                         : <div className="chat-avatar-placeholder" />
                                 )}
-                                <div className={`chat-bubble ${isMine ? "user" : "assistant"}`}>
-                                    {display.split("\n").map((line, idx) => (
-                                        <p key={idx} className="chat-bubble-line">{line}</p>
-                                    ))}
+                                <div
+                                    className={`chat-bubble ${isMine ? "user" : "assistant"}`}
+                                    style={msg.tipo === "imagen" ? { padding: 4, background: "transparent", border: "none" } : {}}
+                                >
+                                    {msg.tipo === "imagen" ? (
+                                        <img
+                                            src={msg.content}
+                                            alt="Imagen enviada"
+                                            className="chat-image-preview"
+                                            onClick={() => setLightboxImage(msg.content)}
+                                        />
+                                    ) : (
+                                        display.split("\n").map((line, idx) => (
+                                            <p key={idx} className="chat-bubble-line">{line}</p>
+                                        ))
+                                    )}
                                 </div>
                                 {isMine && (
-                                    isLastOfGroup
-                                        ? <div className="chat-avatar chat-avatar-mine">{getInitials(senderName)}</div>
-                                        : <div className="chat-avatar-placeholder" />
+                                    isLastOfGroup ? (
+                                        <div className="chat-avatar chat-avatar-mine">
+                                            {patientData.foto_url ? (
+                                                <img 
+                                                    src={patientData.foto_url} 
+                                                    alt={getInitials(senderName)} 
+                                                    style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} 
+                                                />
+                                            ) : (
+                                                getInitials(senderName)
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="chat-avatar-placeholder" />
+                                    )
                                 )}
                             </div>
                             {showCTA && (
@@ -658,7 +803,31 @@ function PatientChatPage() {
                 <div ref={messagesEndRef} />
             </div>
 
-            <div className="chat-input-bar">
+            <div className="chat-input-bar" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input
+                    type="file"
+                    ref={fileInputRef}
+                    style={{ display: "none" }}
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                />
+                <button
+                    className="chat-attachment-btn"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={loading || uploadingImage}
+                    type="button"
+                    title="Enviar foto"
+                >
+                    {uploadingImage ? (
+                        <span className="chat-upload-spinner" style={{ margin: 0 }} />
+                    ) : (
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                            <circle cx="8.5" cy="8.5" r="1.5" />
+                            <polyline points="21 15 16 10 5 21" />
+                        </svg>
+                    )}
+                </button>
                 <textarea
                     ref={textareaRef}
                     className="chat-input"
@@ -667,12 +836,12 @@ function PatientChatPage() {
                     onChange={(e) => { setInput(e.target.value); autoResize(); }}
                     onKeyDown={handleKeyDown}
                     rows={1}
-                    disabled={loading}
+                    disabled={loading || uploadingImage}
                 />
                 <button
                     className="chat-send-btn"
                     onClick={sendMessage}
-                    disabled={loading || !input.trim()}
+                    disabled={loading || !input.trim() || uploadingImage}
                     aria-label="Enviar"
                 >
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -690,6 +859,17 @@ function PatientChatPage() {
                     startedAt={derivacionStartedAt}
                     onCancel={cancelDerivacion}
                 />
+            )}
+
+            {lightboxImage && (
+                <div className="chat-lightbox-overlay" onClick={() => setLightboxImage(null)}>
+                    <div className="chat-lightbox-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="chat-lightbox-close" onClick={() => setLightboxImage(null)}>
+                            ✕
+                        </button>
+                        <img src={lightboxImage} alt="Fullscreen" className="chat-lightbox-img" />
+                    </div>
+                </div>
             )}
         </div>
     );
