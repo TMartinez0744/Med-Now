@@ -44,8 +44,16 @@ async function chatCompletion(messages) {
         throw err;
     }
 
+    // Limitar el historial a los últimos 10 mensajes para evitar exceder el límite de tokens (TPM)
+    // del plan gratuito (especialmente con imágenes) y reducir la latencia de red.
+    const maxHistory = 10;
+    let history = messages.slice(-maxHistory);
+    while (history.length > 0 && history[0].role === "assistant") {
+        history.shift();
+    }
+
     const contents = [];
-    for (const m of messages) {
+    for (const m of history) {
         const role = m.role === "assistant" ? "model" : "user";
         const isImage = m.tipo === "imagen" || (typeof m.content === "string" && m.content.startsWith("http") && (m.content.includes("/storage/v1/object/public/") || m.content.match(/\.(jpeg|jpg|gif|png|webp)/i)));
         
