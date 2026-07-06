@@ -12,6 +12,7 @@ type TurnoCalendar = {
     id: string;
     fecha_hora: string;
     estado: string;
+    sede?: string | null;
     medico_id?: string;
     paciente_id?: string;
     medicos?: {
@@ -126,8 +127,113 @@ export default function CalendarView({
         return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
     };
 
+    const formatShortDate = (isoString: string) => {
+        const d = new Date(isoString);
+        const s = d.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" });
+        return s.charAt(0).toUpperCase() + s.slice(1);
+    };
+
+    // Próximos turnos (para cuando el día seleccionado no tiene turnos): unifica
+    // el calendario con la vista de "Próximos" — los muestra ordenados por fecha.
+    const upcomingTurnos = turnos
+        .filter((t) => t.estado !== "cancelado" && new Date(t.fecha_hora) >= today)
+        .sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime())
+        .slice(0, 6);
+
+    const renderTurnoCard = (turno: TurnoCalendar, showDate = false) => {
+        const timeStr = formatTime(turno.fecha_hora);
+        const isPast = new Date(turno.fecha_hora) < today;
+        const status = turno.estado === "cancelado" ? "cancelado" : isPast ? "completado" : "pendiente";
+        const counterpartyId = role === "patient" ? turno.medico_id : turno.paciente_id;
+        const name = role === "patient"
+            ? formatDoctorName(turno.medicos?.profiles?.nombre_apellido)
+            : (turno.pacientes?.profiles?.nombre_apellido ?? "Paciente");
+        const sub = role === "patient"
+            ? (turno.medicos?.especialidades?.[0] ?? "Médico de MedNow")
+            : `Turno ${turno.estado}`;
+
+        const unreadCount = counterpartyId ? (unreadMessages[counterpartyId] ?? 0) : 0;
+
+        return (
+            <div key={turno.id} className="calendar-turno-card">
+                {/* Barra de estado lateral */}
+                <div className={`calendar-turno-status-bar ${status}`} />
+
+                <div className="calendar-turno-content">
+                    <div className="calendar-turno-info">
+                        <p className="calendar-turno-time">
+                            {showDate ? `${formatShortDate(turno.fecha_hora)} · ${timeStr} hs` : `${timeStr} hs`}
+                        </p>
+                        <p className="calendar-turno-name">{name}</p>
+                        <p className="calendar-turno-sub">{sub}</p>
+                        {turno.sede && (
+                            <p className="calendar-turno-sub" style={{ display: "flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                                    <circle cx="12" cy="10" r="3" />
+                                </svg>
+                                {turno.sede}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="calendar-turno-actions-wrapper">
+                        {/* Badge de estado */}
+                        <span className={`turno-badge ${status}`}>
+                            {status === "pendiente" ? "Pendiente" : status === "completado" ? "Completado" : "Cancelado"}
+                        </span>
+
+                        {/* Botones de acción */}
+                        <div className="calendar-turno-buttons">
+                            {/* Botón ver Ficha (Solo Médico) */}
+                            {role === "doctor" && onFicha && counterpartyId && (
+                                <button
+                                    onClick={() => onFicha(counterpartyId, name)}
+                                    className="ficha-square-btn"
+                                    title="Ver ficha del paciente"
+                                    style={{ width: 34, height: 34, borderRadius: 8 }}
+                                >
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                        <polyline points="14 2 14 8 20 8" />
+                                        <line x1="12" y1="18" x2="12" y2="12" />
+                                        <line x1="9" y1="15" x2="15" y2="15" />
+                                    </svg>
+                                </button>
+                            )}
+
+                            {/* Botón Chatear */}
+                            {counterpartyId && (
+                                <button
+                                    onClick={() => onChat(counterpartyId)}
+                                    className="chatear-btn"
+                                    style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
+                                >
+                                    Chatear
+                                    {unreadCount > 0 && <span className="chatear-btn-dot" />}
+                                </button>
+                            )}
+
+                            {/* Botón Cancelar */}
+                            {turno.estado === "pendiente" && !isPast && (
+                                <button
+                                    onClick={() => onCancel(turno.id)}
+                                    className="cancel-turno-btn"
+                                    style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
+                                >
+                                    Cancelar
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="calendar-container">
+          <div className="calendar-main">
             {/* Header del Calendario */}
             <div className="calendar-header">
                 <button className="calendar-nav-btn" onClick={handlePrevMonth} title="Mes anterior">
@@ -193,6 +299,7 @@ export default function CalendarView({
                     );
                 })}
             </div>
+          </div>
 
             {/* Panel de Detalles del Día Seleccionado */}
             <div className="calendar-details-panel">
@@ -201,96 +308,27 @@ export default function CalendarView({
                 </h4>
 
                 {selectedTurnos.length === 0 ? (
-                    <div className="calendar-empty-state">
-                        <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
-                        <p className="calendar-empty-text">No hay turnos para este día.</p>
-                        {role === "patient" && onBuscarTurno && (
-                            <button className="calendar-empty-action" onClick={onBuscarTurno}>
-                                Buscar y agendar turno
-                            </button>
-                        )}
-                    </div>
+                    upcomingTurnos.length > 0 ? (
+                        <div>
+                            <p className="calendar-upcoming-label">Próximos turnos</p>
+                            <div className="calendar-turnos-list">
+                                {upcomingTurnos.map((turno) => renderTurnoCard(turno, true))}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="calendar-empty-state">
+                            <div style={{ fontSize: 36, marginBottom: 8 }}>📅</div>
+                            <p className="calendar-empty-text">No tenés turnos próximos.</p>
+                            {role === "patient" && onBuscarTurno && (
+                                <button className="calendar-empty-action" onClick={onBuscarTurno}>
+                                    Buscar y agendar turno
+                                </button>
+                            )}
+                        </div>
+                    )
                 ) : (
                     <div className="calendar-turnos-list">
-                        {selectedTurnos.map((turno) => {
-                            const timeStr = formatTime(turno.fecha_hora);
-                            const isPast = new Date(turno.fecha_hora) < today;
-                            const status = turno.estado === "cancelado" ? "cancelado" : isPast ? "completado" : "pendiente";
-                            const counterpartyId = role === "patient" ? turno.medico_id : turno.paciente_id;
-                            const name = role === "patient" 
-                                ? formatDoctorName(turno.medicos?.profiles?.nombre_apellido)
-                                : (turno.pacientes?.profiles?.nombre_apellido ?? "Paciente");
-                            const sub = role === "patient"
-                                ? (turno.medicos?.especialidades?.[0] ?? "Médico de MedNow")
-                                : `Turno ${turno.estado}`;
-                            
-                            const unreadCount = counterpartyId ? (unreadMessages[counterpartyId] ?? 0) : 0;
-
-                            return (
-                                <div key={turno.id} className="calendar-turno-card">
-                                    {/* Barra de estado lateral */}
-                                    <div className={`calendar-turno-status-bar ${status}`} />
-
-                                    <div className="calendar-turno-content">
-                                        <div className="calendar-turno-info">
-                                            <p className="calendar-turno-time">{timeStr} hs</p>
-                                            <p className="calendar-turno-name">{name}</p>
-                                            <p className="calendar-turno-sub">{sub}</p>
-                                        </div>
-
-                                        <div className="calendar-turno-actions-wrapper">
-                                            {/* Badge de estado */}
-                                            <span className={`turno-badge ${status}`}>
-                                                {status === "pendiente" ? "Pendiente" : status === "completado" ? "Completado" : "Cancelado"}
-                                            </span>
-
-                                            {/* Botones de acción */}
-                                            <div className="calendar-turno-buttons">
-                                                {/* Botón ver Ficha (Solo Médico) */}
-                                                {role === "doctor" && onFicha && counterpartyId && (
-                                                    <button
-                                                        onClick={() => onFicha(counterpartyId, name)}
-                                                        className="ficha-square-btn"
-                                                        title="Ver ficha del paciente"
-                                                        style={{ width: 34, height: 34, borderRadius: 8 }}
-                                                    >
-                                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                                            <polyline points="14 2 14 8 20 8" />
-                                                            <line x1="12" y1="18" x2="12" y2="12" />
-                                                            <line x1="9" y1="15" x2="15" y2="15" />
-                                                        </svg>
-                                                    </button>
-                                                )}
-
-                                                {/* Botón Chatear */}
-                                                {counterpartyId && (
-                                                    <button
-                                                        onClick={() => onChat(counterpartyId)}
-                                                        className="chatear-btn"
-                                                        style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
-                                                    >
-                                                        Chatear
-                                                        {unreadCount > 0 && <span className="chatear-btn-dot" />}
-                                                    </button>
-                                                )}
-
-                                                {/* Botón Cancelar */}
-                                                {turno.estado === "pendiente" && !isPast && (
-                                                    <button
-                                                        onClick={() => onCancel(turno.id)}
-                                                        className="cancel-turno-btn"
-                                                        style={{ padding: "6px 12px", fontSize: 12, borderRadius: 8 }}
-                                                    >
-                                                        Cancelar
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                        {selectedTurnos.map((turno) => renderTurnoCard(turno))}
                     </div>
                 )}
             </div>

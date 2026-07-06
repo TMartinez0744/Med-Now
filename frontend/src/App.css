@@ -1837,13 +1837,32 @@
 /* ─── Calendario (CalendarView) ────────────────────────────────────────────── */
 
 .calendar-container {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
   background: white;
   border-radius: 20px;
   padding: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
   margin: 16px 20px;
+}
+
+.calendar-main {
+  display: flex;
+  flex-direction: column;
+}
+
+/* En pantallas anchas: calendario a la izquierda, turnos del dia a la derecha.
+   Asi entra todo sin scrollear y el calendario deja de ser gigante. */
+@media (min-width: 800px) {
+  .calendar-container {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    width: min(1040px, calc(100% - 40px));
+    margin: 16px auto;
+    align-items: start;
+    gap: 32px;
+    padding: 24px;
+  }
 }
 
 .calendar-header {
@@ -1902,8 +1921,8 @@
 .calendar-cell {
   background: transparent;
   border: none;
-  border-radius: 12px;
-  aspect-ratio: 1;
+  border-radius: 10px;
+  min-height: 62px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1936,7 +1955,8 @@
 }
 
 .calendar-day-number {
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .calendar-dots-container {
@@ -1977,11 +1997,29 @@
   padding-top: 16px;
 }
 
+/* En dos columnas el panel va al costado, no debajo: sin separador superior */
+@media (min-width: 800px) {
+  .calendar-details-panel {
+    margin-top: 0;
+    border-top: none;
+    padding-top: 0;
+  }
+}
+
 .calendar-details-title {
   font-size: 15px;
   font-weight: 700;
   color: #111827;
   margin: 0 0 12px;
+}
+
+.calendar-upcoming-label {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #9ca3af;
+  margin: 0 0 10px;
 }
 
 .calendar-empty-state {
