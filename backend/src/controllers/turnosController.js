@@ -5,7 +5,7 @@ class TurnosController {
     // POST /api/turnos
     async create(req, res) {
         try {
-            const { paciente_id, medico_id, fecha_hora, notas_triage } = req.body;
+            const { paciente_id, medico_id, fecha_hora, sede, notas_triage } = req.body;
 
             if (!paciente_id || !medico_id || !fecha_hora) {
                 return res.status(400).json({
@@ -14,7 +14,7 @@ class TurnosController {
                 });
             }
 
-            const turno = await turnosService.create({ paciente_id, medico_id, fecha_hora, notas_triage });
+            const turno = await turnosService.create({ paciente_id, medico_id, fecha_hora, sede, notas_triage });
             res.status(201).json({ success: true, data: turno });
 
             // Enviar notificación de nuevo turno por email (médico + paciente) en segundo plano

@@ -3,7 +3,7 @@ const supabase = require('../config/supabase');
 class TurnosService {
 
     // Crear un turno
-    async create({ paciente_id, medico_id, fecha_hora, notas_triage }) {
+    async create({ paciente_id, medico_id, fecha_hora, sede, notas_triage }) {
         // Verificar que no exista ya un turno activo para el mismo médico y fecha/hora
         const { data: existente, error: checkError } = await supabase
             .from('turnos')
@@ -27,9 +27,10 @@ class TurnosService {
                 paciente_id,
                 medico_id,
                 fecha_hora,
+                sede: sede || null,
                 estado: 'pendiente',
             })
-            .select('id, paciente_id, medico_id, fecha_hora, estado')
+            .select('id, paciente_id, medico_id, fecha_hora, sede, estado')
             .single();
 
         if (error) throw error;
@@ -41,7 +42,7 @@ class TurnosService {
         const { data, error } = await supabase
             .from('turnos')
             .select(`
-                id, fecha_hora, estado,
+                id, fecha_hora, estado, sede,
                 medico_id,
                 medicos (
                     especialidades,
@@ -62,7 +63,7 @@ class TurnosService {
         const { data, error } = await supabase
             .from('turnos')
             .select(`
-                id, fecha_hora, estado,
+                id, fecha_hora, estado, sede,
                 paciente_id,
                 pacientes (
                     profiles ( nombre_apellido, foto_url )
@@ -82,7 +83,7 @@ class TurnosService {
         const { data, error } = await supabase
             .from('turnos')
             .select(`
-                id, fecha_hora, estado,
+                id, fecha_hora, estado, sede,
                 medico_id,
                 medicos (
                     especialidades,
@@ -101,7 +102,7 @@ class TurnosService {
         const { data, error } = await supabase
             .from('turnos')
             .select(`
-                id, fecha_hora, estado,
+                id, fecha_hora, estado, sede,
                 paciente_id,
                 pacientes (
                     profiles ( nombre_apellido, foto_url )
