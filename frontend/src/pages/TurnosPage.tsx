@@ -163,7 +163,7 @@ function TurnosPage() {
     const [proximosTurnos, setProximosTurnos] = useState<TurnoBackend[]>([]);
     const [historialTurnos, setHistorialTurnos] = useState<TurnoBackend[]>([]);
     const [loadingTurnos, setLoadingTurnos] = useState(false);
-    const [cancelandoId, setCancelandoId] = useState<string | null>(null);
+    const [, setCancelandoId] = useState<string | null>(null);
 
     // Modal de reserva
     const [reserva, setReserva] = useState<ReservaPendiente | null>(null);

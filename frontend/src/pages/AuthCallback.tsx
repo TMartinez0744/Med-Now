@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { showToast } from "../lib/toast";
+import { BASE_URL } from "../lib/api";
 
 function AuthCallback() {
     const navigate = useNavigate();
@@ -63,7 +64,7 @@ function AuthCallback() {
         const processSession = async (session: any) => {
             try {
                 // 2. Enviar el access_token al backend para validarlo e iniciar sesión en MedNow
-                const response = await fetch("http://localhost:3000/api/auth/google-login", {
+                const response = await fetch(`${BASE_URL}/api/auth/google-login`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",

@@ -21,6 +21,12 @@ const allowedOrigins = [
     'http://127.0.0.1:5174',
 ];
 
+// Orígenes de producción (ej: URL del frontend en Vercel).
+// Se definen en FRONTEND_URL, separados por coma si hay más de uno.
+if (process.env.FRONTEND_URL) {
+    allowedOrigins.push(...process.env.FRONTEND_URL.split(',').map((o) => o.trim()));
+}
+
 const corsOptions = {
     origin: function (origin, callback) {
         // En desarrollo local, se permiten solicitudes sin origen (ej: Postman, curl, tests locales)

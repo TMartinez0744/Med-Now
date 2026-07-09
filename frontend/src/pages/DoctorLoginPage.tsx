@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { showToast } from "../lib/toast";
+import { BASE_URL } from "../lib/api";
 
 function DoctorLoginPage() {
     const navigate = useNavigate();
@@ -26,7 +27,7 @@ function DoctorLoginPage() {
         }
 
         try {
-            const response = await fetch("http://localhost:3000/api/auth/login", {
+            const response = await fetch(`${BASE_URL}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ dni: fullLicense, password }),

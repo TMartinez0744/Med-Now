@@ -1,4 +1,5 @@
-const BASE_URL = "http://localhost:3000";
+// URL del backend. En producción se define VITE_API_URL; en local cae a localhost.
+export const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
 const AUTH_FAILED_MESSAGES = ["token inválido", "token expirado", "token requerido"];
 

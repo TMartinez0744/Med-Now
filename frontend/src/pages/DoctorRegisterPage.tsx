@@ -1,6 +1,7 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { showToast } from "../lib/toast";
+import { BASE_URL } from "../lib/api";
 
 function DoctorRegisterPage() {
     const navigate = useNavigate();
@@ -39,7 +40,7 @@ function DoctorRegisterPage() {
         }
 
         try {
-            const response = await fetch("http://localhost:3000/api/auth/register", {
+            const response = await fetch(`${BASE_URL}/api/auth/register`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
