@@ -24,8 +24,17 @@ const SPECIALTIES = [
     "Cardiología",
     "Clínica médica",
     "Dermatología",
+    "Endocrinología",
+    "Gastroenterología",
+    "Ginecología",
+    "Neurología",
+    "Nutrición",
+    "Oftalmología",
+    "Otorrinolaringología",
     "Pediatría",
+    "Psiquiatría",
     "Traumatología",
+    "Urología",
 ];
 
 const HOSPITALS = [
